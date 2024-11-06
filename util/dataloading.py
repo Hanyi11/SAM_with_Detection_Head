@@ -326,7 +326,7 @@ class OrganoID:
         
         if split == 'train':
             self.images = train
-        if split == 'train_orig':
+        elif split == 'train_orig':
             self.images = train_orig
         elif split == 'val':
             self.images = val
@@ -524,7 +524,7 @@ class Tellu:
         im_path = self.images[i]
         im_ID = im_path.stem
 
-        boxes = pd.read_csv(im_path.parent.parent / 'labels' / f'{im_path.stem}.txt', header=None, delim_whitespace=True)
+        boxes = pd.read_csv(im_path.parent.parent / 'labels' / f'{im_path.stem}.txt', header=None, sep='\s+')
         boxes.columns = ["id", "x1", "y1", "w", "h"]
         boxes = [[b.y1, b.x1, b.h, b.w] for b in boxes.itertuples(index=False)]
         boxes = np.array(boxes).astype(float).reshape((-1, 4))
