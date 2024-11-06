@@ -5,7 +5,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from detection_head_datamodule import DetectionHeadDataModule
 from detection_head_model import DetectionHead
 import wandb
-
+# --train_dir="" --val_dir="" --sub_name="SAM_large"
 def get_args_parser():
     parser = argparse.ArgumentParser(description='Set Detection Head', add_help=False)
 
