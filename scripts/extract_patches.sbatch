@@ -8,7 +8,7 @@
 #SBATCH --partition gpu_p
 
 #SBATCH --cpus-per-task 1
-#SBATCH --mem=16G
+#SBATCH --mem=40G
 
 #SBATCH -t 02-00:00:00
 

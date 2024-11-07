@@ -21,6 +21,8 @@ def compute_median_size_image(boxes):
     heights = boxes[:, 2] - boxes[:, 0]
     widths = boxes[:, 3] - boxes[:, 1]
     median_size = np.median(np.concatenate([heights, widths], axis=0), axis=0)
+    if np.isnan(median_size):
+        print('boxes', boxes)
     return median_size
 
 
@@ -39,9 +41,16 @@ def compute_median_size(ds):
 
 
 def compute_patch_size(median_size):
-    patch_size = int(median_size * 8)
+    patch_size = max(int(median_size * 8), 256)
     return patch_size
 
+
+def is_empty(image):
+    if np.quantile(image.flatten(), 0.99) < 10:
+        return True
+    else:
+        return False
+    
 
 def normalize(image, smoothness=10):
     # Normalize dtype
@@ -139,9 +148,17 @@ def patch(im, mask, boxes, size=512):
     if H > size:
         n_patches_y += int(np.round((H-size) / (size - 2*padding) + 0.3))
 
-    size_x = int(np.ceil((W + n_patches_x * 2 * padding) / n_patches_x))
-    size_y = int(np.ceil((H + n_patches_y * 2 * padding) / n_patches_y))
+    size_x = int(np.ceil((W + (n_patches_x-1) * 2 * padding) / n_patches_x))
+    size_y = int(np.ceil((H + (n_patches_y-1) * 2 * padding) / n_patches_y))
     size = max(size_x, size_y)
+
+    # Compute number of patches per side with updated size
+    n_patches_x = 1
+    if W > size:
+        n_patches_x += int(np.ceil((W-size) / (size - 2*padding)))
+    n_patches_y = 1
+    if H > size:
+        n_patches_y += int(np.ceil((H-size) / (size - 2*padding)))
 
     grid_x = np.round(np.linspace(0, W-size, n_patches_x)).astype(int).tolist()
     grid_y = np.round(np.linspace(0, H-size, n_patches_y)).astype(int).tolist()
@@ -173,7 +190,7 @@ def patch(im, mask, boxes, size=512):
             #     im_end_y = im_start_y + size
 
             # print(i, j, n_patches_x, n_patches_y)
-            # print(H, W, im_start_x, im_start_y, im_end_x, im_end_y)
+            print(size, n_patches_x, n_patches_y, W, H, im_start_x, im_start_y, im_end_x, im_end_y)
             # Crop image and generate grid
             mask_crop = None
             if not requires_zero_background:
