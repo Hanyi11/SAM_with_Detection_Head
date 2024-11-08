@@ -563,7 +563,6 @@ class Tellu:
         return len(self.images)
     
 
-
 class MultiOrg:
     def __init__(self, split=None, data_folder = base_datadir):
         self.split = split
