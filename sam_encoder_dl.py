@@ -383,7 +383,7 @@ if __name__ == "__main__":
     # --- Parameters to set ---
     save_parent_dir = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patch_embeddings"
     encoder_names =  ["MicroSAM_huge"] # ["SAM_base", "MedSAM", "CellSAM", "SAM_large", "MicroSAM_huge" ]
-    data_split = "val"
+    data_split = "train"
     print(encoder_names)
     print(data_split)
 

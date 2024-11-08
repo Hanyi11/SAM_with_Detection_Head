@@ -13,8 +13,8 @@ def get_args_parser():
     parser = argparse.ArgumentParser(description='Set Detection Head', add_help=False)
 
     # Directories for training and validation datasets
-    parser.add_argument('--train_dirs', type=List[str], required=True, help='List of directories containing the training dataset.')
-    parser.add_argument('--val_dirs', type=List[str], required=True, help='List of directories containing the validation dataset.')
+    parser.add_argument('--train_dirs', type=str, nargs='+', required=True, help='List of directories containing the training dataset.')
+    parser.add_argument('--val_dirs', type=str, nargs='+', required=True, help='List of directories containing the validation dataset.')
     parser.add_argument('--encoder_name', type=str, required=True, help='Encoder used for calculating embeddings: '
                         '["SAM_base", "MedSAM", "CellSAM", "SAM_large", "MicroSAM_huge", "SAM2_large"]')
     parser.add_argument('--batch_size', type=int, default=4, help='Number of samples in each batch.')
@@ -69,9 +69,9 @@ def train(args) -> None:
     data_module = DetectionHeadDataModule(
                                         encoder_name=args.encoder_name, 
                                         batch_size=args.batch_size, 
-                                        train_dir_names= args.train_dirs,
-                                        test_dir_names=args.val_dirs,
-                                        batches_per_epoch=args.patches_per_epoch,
+                                        train_dir_names=args.train_dirs,
+                                        val_dir_names=args.val_dirs,
+                                        batches_per_epoch=args.batches_per_epoch,
                                         use_sampler=args.use_sampler
                                         )
 
