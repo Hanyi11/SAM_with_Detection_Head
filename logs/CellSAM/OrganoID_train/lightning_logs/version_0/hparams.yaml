@@ -1,0 +1,4 @@
+train_dirs:
+- OrganoID_train
+val_dirs:
+- OrganoID_val
