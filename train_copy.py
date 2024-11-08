@@ -6,7 +6,6 @@ from detection_head_datamodule_copy import DetectionHeadDataModule
 from detection_head_model import DetectionHead
 import wandb
 import os
-from typing import List
 
 # --train_dir="" --val_dir="" --sub_name="SAM_large"
 def get_args_parser():
