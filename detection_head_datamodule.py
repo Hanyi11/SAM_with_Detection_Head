@@ -75,7 +75,7 @@ class DetectionHeadDataModule(pl.LightningDataModule):
             self.val_dataset = DetectionHeadDataset(self.val_dir, num_queries=self.num_queries)
     
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=4)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=14)
     
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=4)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=14)

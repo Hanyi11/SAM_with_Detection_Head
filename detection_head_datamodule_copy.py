@@ -180,8 +180,8 @@ class DetectionHeadDataModule(pl.LightningDataModule):
                                        "SAM_large", "MicroSAM_huge", "SAM2_large"] = "SAM_base",
                  batch_size: int = 32, 
                  num_queries: int = 300,
-                 batches_per_epoch: int = 500,
-                 use_sampler: bool = True
+                 batches_per_epoch: int = 411,
+                 use_sampler: bool = False
                  ):
         super().__init__()
 

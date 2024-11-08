@@ -20,7 +20,7 @@ def get_args_parser():
     parser.add_argument('--batch_size', type=int, default=4, help='Number of samples in each batch.')
     parser.add_argument('--batches_per_epoch', type=int, default=500, help='Define how many batches are used during training of each epoch.'
                         ' The data is then sampled by a RandomSample instead of using shuffle in the data loader')
-    parser.add_argument('--use_sampler', type=bool, default=True, help='If true the model is trained with a fixed size of batches per epoch'
+    parser.add_argument('--use_sampler', type=bool, default=False, action='store_true', help='If true the model is trained with a fixed size of batches per epoch'
                         'instead of using possibly all data in the datset each epoch. Is useful if you want to train models on multiple datasets and compare them.')
 
     # Learning rate and optimizer parameters
@@ -97,21 +97,32 @@ def train(args) -> None:
         aux_loss=args.aux_loss
     )
 
+    # for logging:
+    train_dirs_str = "_".join(args.train_dirs)
+    val_dirs_str = "_".join(args.val_dirs)
     # Initialize a CSV logger to record training progress into a CSV file at specified directory
     # csv_logger = pl_loggers.CSVLogger(args.log_dir)
-    csv_logger = pl_loggers.CSVLogger(os.path.join(args.log_dir, args.encoder_name, ''))
+    csv_logger = pl_loggers.CSVLogger(os.path.join(args.log_dir, args.encoder_name, train_dirs_str,''))
+    csv_logger.log_hyperparams({"train_dirs": args.train_dirs, "val_dirs": args.val_dirs})
     
 
     # Initialize the Wandb logger for experiment tracking and logging
     wandb_logger = pl_loggers.WandbLogger(
         name=f"{args.project_name}_{args.encoder_name}_{args.sub_name}",
-        project=f"{args.project_name}",
+        project=f"{args.project_name}_{train_dirs_str}",
         log_model=True,
         save_dir=args.log_dir
     )
 
+    wandb_logger.experiment.config.update({
+        "train_dirs": args.train_dirs,
+        "val_dirs": args.val_dirs,
+        "encoder_name": args.encoder_name,
+        "sub_name": args.sub_name
+    })
+
     # Prepare a unique checkpointing name combining project and subproject names
-    checkpointing_name = f"{args.project_name}_{args.encoder_name}_{args.sub_name}"
+    checkpointing_name = f"{args.project_name}_{args.encoder_name}_{train_dirs_str}_{args.sub_name}"
 
     # Configure model checkpointing to save all models every 50 epochs with specific filename format
     checkpoint_callback_regular = ModelCheckpoint(
@@ -140,9 +151,10 @@ if __name__ == "__main__":
     # Parse command-line arguments
     parser = argparse.ArgumentParser('Detection Head training script', parents=[get_args_parser()])
     args = parser.parse_args()
+    train_dirs_str = "_".join(args.train_dirs)
 
     # Initialize wandb
-    wandb.init(project=args.project_name, name=f"{args.project_name}_{args.encoder_name}_{args.sub_name}")
+    wandb.init(project=f"{args.project_name}", name=f"{args.project_name}_{args.encoder_name}_{train_dirs_str}_{args.sub_name}")
 
     # Start training
     train(args)
