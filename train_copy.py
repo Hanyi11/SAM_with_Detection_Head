@@ -5,14 +5,23 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from detection_head_datamodule_copy import DetectionHeadDataModule
 from detection_head_model import DetectionHead
 import wandb
+import os
+from typing import List
+
 # --train_dir="" --val_dir="" --sub_name="SAM_large"
 def get_args_parser():
     parser = argparse.ArgumentParser(description='Set Detection Head', add_help=False)
 
     # Directories for training and validation datasets
-    parser.add_argument('--train_dir', type=str, required=True, help='Directory containing the training dataset.')
-    parser.add_argument('--val_dir', type=str, required=True, help='Directory containing the validation dataset.')
+    parser.add_argument('--train_dirs', type=str, nargs='+', required=True, help='List of directories containing the training dataset.')
+    parser.add_argument('--val_dirs', type=str, nargs='+', required=True, help='List of directories containing the validation dataset.')
+    parser.add_argument('--encoder_name', type=str, required=True, help='Encoder used for calculating embeddings: '
+                        '["SAM_base", "MedSAM", "CellSAM", "SAM_large", "MicroSAM_huge", "SAM2_large"]')
     parser.add_argument('--batch_size', type=int, default=4, help='Number of samples in each batch.')
+    parser.add_argument('--batches_per_epoch', type=int, default=500, help='Define how many batches are used during training of each epoch.'
+                        ' The data is then sampled by a RandomSample instead of using shuffle in the data loader')
+    parser.add_argument('--use_sampler', type=bool, default=True, help='If true the model is trained with a fixed size of batches per epoch'
+                        'instead of using possibly all data in the datset each epoch. Is useful if you want to train models on multiple datasets and compare them.')
 
     # Learning rate and optimizer parameters
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate for the optimizer.')
@@ -57,7 +66,14 @@ def train(args) -> None:
         print(f"{arg}: {getattr(args, arg)}")
 
     # Initialize the data module with training and validation data paths and batch size
-    data_module = DetectionHeadDataModule(train_dir=args.train_dir, val_dir=args.val_dir, batch_size=args.batch_size)
+    data_module = DetectionHeadDataModule(
+                                        encoder_name=args.encoder_name, 
+                                        batch_size=args.batch_size, 
+                                        train_dir_names=args.train_dirs,
+                                        val_dir_names=args.val_dirs,
+                                        batches_per_epoch=args.batches_per_epoch,
+                                        use_sampler=args.use_sampler
+                                        )
 
     # Create the model with specified configurations like learning rate and architecture parameters
     model = DetectionHead(
@@ -82,18 +98,20 @@ def train(args) -> None:
     )
 
     # Initialize a CSV logger to record training progress into a CSV file at specified directory
-    csv_logger = pl_loggers.CSVLogger(args.log_dir)
+    # csv_logger = pl_loggers.CSVLogger(args.log_dir)
+    csv_logger = pl_loggers.CSVLogger(os.path.join(args.log_dir, args.encoder_name, ''))
+    
 
     # Initialize the Wandb logger for experiment tracking and logging
     wandb_logger = pl_loggers.WandbLogger(
-        name=f"{args.project_name}_{args.sub_name}",
-        project=args.project_name,
+        name=f"{args.project_name}_{args.encoder_name}_{args.sub_name}",
+        project=f"{args.project_name}",
         log_model=True,
         save_dir=args.log_dir
     )
 
     # Prepare a unique checkpointing name combining project and subproject names
-    checkpointing_name = f"{args.project_name}_{args.sub_name}"
+    checkpointing_name = f"{args.project_name}_{args.encoder_name}_{args.sub_name}"
 
     # Configure model checkpointing to save all models every 50 epochs with specific filename format
     checkpoint_callback_regular = ModelCheckpoint(
@@ -124,7 +142,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Initialize wandb
-    wandb.init(project=args.project_name, name=f"{args.project_name}_{args.sub_name}")
+    wandb.init(project=args.project_name, name=f"{args.project_name}_{args.encoder_name}_{args.sub_name}")
 
     # Start training
     train(args)
