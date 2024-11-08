@@ -258,7 +258,7 @@ def process_image(image: np.ndarray, image_path: str, predictor: "SamPredictor",
     save_name = f"images_patches_emb_{extracted_number:04}"
 
     # Calculate embeddings
-    sam_predict_and_safe_embedding(predictor, image, save_name, save_dir)
+    sam_predict_and_save_embedding(predictor, image, save_name, save_dir)
 
 
 # ---- Helper Functions ----
@@ -382,13 +382,16 @@ class OrganoidImageDataset(Dataset):
 if __name__ == "__main__":
     # --- Parameters to set ---
     save_parent_dir = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patch_embeddings"
-    encoder_names = ["SAM_large", "SAM_base", "MedSAM", "CellSAM", "MicroSAM_huge", "MicroSAM_large", "MicroSAM_base" ] # encoder_names = ["SAM_large", "SAM_base", "MedSAM", "CellSAM", "MicroSAM_huge" ]
+    encoder_names =  ["MicroSAM_huge"] # ["SAM_base", "MedSAM", "CellSAM", "SAM_large", "MicroSAM_huge" ]
     data_split = "val"
+    print(encoder_names)
+    print(data_split)
 
 
     # Get all paths of images you want to embed
     base_dir = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patch_images"
     datasets = os.listdir(os.path.join(base_dir, data_split))
+    datasets = datasets[::-1]
     parent_dirs = [os.path.join(base_dir, data_split, dataset) for dataset in datasets]
     
     all_img_paths = []
