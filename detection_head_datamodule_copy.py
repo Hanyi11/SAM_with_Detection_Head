@@ -1,3 +1,6 @@
+from pathlib import Path
+import cv2
+import pandas as pd
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SubsetRandomSampler
 import torch
@@ -70,44 +73,49 @@ class DetectionHeadDataset(Dataset):
         self.encoder_name = encoder_name
 
         # ---- Get sorted paths of Image embeddings ----
+        organoid_dirs = [d for d in data_split_dirs if not d.startswith('open_images_embeddings')]
+        open_image_dirs = [d for d in data_split_dirs if d.startswith('open_images_embeddings')]
+        assert len(open_image_dirs) <= 1, open_image_dirs  # Should just be ['open_images_embeddings']
+
+
         # Define the parent directory
         parent_dir: str = os.path.join(self.base_dir, "patch_embeddings", self.encoder_name, self.data_split)
-        datasets_dirs: List[str] = [os.path.join(parent_dir, data_split_dir) for data_split_dir in data_split_dirs]
+        datasets_dirs: List[str] = [os.path.join(parent_dir, data_split_dir) for data_split_dir in organoid_dirs]
 
         # Get all datasets directories and their subdirectories in a single step
-        merged_image_dirs: List[str] = [
-            subdir for datasets_dir in datasets_dirs
-            for subdir in get_subdirectories_from_dir(datasets_dir)
-        ]
+        merged_image_dirs: List[str] = []
+        for datasets_dir in datasets_dirs:
+            for subdir in get_subdirectories_from_dir(datasets_dir):
+                merged_image_dirs.append(subdir)
 
         # Collect all image paths from subdirectories
-        merged_image_paths: List[str] = [
-            image_path for image_dir in merged_image_dirs
-            for image_path in get_files_from_dir(image_dir, file_ending=".npy")
-        ]
+        merged_image_paths: List[str] = []
+        for image_dir in merged_image_dirs:
+            for image_path in get_files_from_dir(image_dir, file_ending=".npy"):
+                merged_image_paths.append(image_path)
 
         # Sort all .npy files from the merged image paths
-        self.image_files: List[str] = sorted(merged_image_paths)
+        self.image_files: List[str] = sorted(merged_image_paths, key=lambda x: (Path(x).parent.as_posix(), int(Path(x).stem[19:])))
 
 
         # ---- Get sorted paths of GT-BBox labels ----
         parent_dir_gt: str = os.path.join(self.base_dir, "patch_bbox_gt", self.data_split)
-        datasets_dirs_gt: List[str] = [os.path.join(parent_dir_gt, data_split_dir) for data_split_dir in data_split_dirs]
+        datasets_dirs_gt: List[str] = [os.path.join(parent_dir_gt, data_split_dir) for data_split_dir in organoid_dirs]
 
         # Get all datasets directories and their subdirectories in a single step
-        merged_gt_dirs: List[str] = [
-            subdir for dataset_dir in datasets_dirs_gt 
-            for subdir in get_subdirectories_from_dir(dataset_dir)
-        ]
+        merged_gt_dirs: List[str] = []
+        for dataset_dir in datasets_dirs_gt:
+            for subdir in get_subdirectories_from_dir(dataset_dir):
+                merged_gt_dirs.append(subdir)
 
         # Collect all gt paths from subdirectories
-        merged_gt_paths: List[str] = [
-            gt_path for gt_dir in merged_gt_dirs 
-            for gt_path in get_files_from_dir(gt_dir, file_beginning="patch" ,file_ending=".npy")
-        ]
+        merged_gt_paths: List[str] = []
+        for gt_dir in merged_gt_dirs:
+            for gt_path in get_files_from_dir(gt_dir, file_beginning="patch" ,file_ending=".npy"):
+                merged_gt_paths.append(gt_path)
         
         # Sort all .npy files from merged gt paths
-        self.label_files: List[str] = sorted(merged_gt_paths)
+        self.label_files: List[str] = sorted(merged_gt_paths, key=lambda x: (Path(x).parent.as_posix(), int(Path(x).stem[6:])))
         
 
         # ---- Ensure that the image files and label files match
@@ -133,21 +141,48 @@ class DetectionHeadDataset(Dataset):
             label_path_cleaned = os.path.join(label_base_cleaned, label_name)
             
             # Compare
-            img_path_cleaned == label_path_cleaned, f"Filename mismatch: {img_file} and {label_file} are not the right img_patch and gt_label pair!"
+            assert img_path_cleaned == label_path_cleaned, f"Filename mismatch: {img_file} and {label_file} are not the right img_patch and gt_label pair!"
+
+        # Append open image file paths to self.image_files but not to self.label_files
+        for oi_path in open_image_dirs:
+            oi_split = Path(oi_path).name
+            path = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/open_images_embeddings') / self.encoder_name / oi_split
+            self.image_files += sorted(list(path.glob('*.npy')))
+
+        self.oi_annotation = pd.read_csv('/ictstr01/groups/shared/users/lion.gleiter/open_images_v4_5/original_data/validation-annotations-bbox.csv')
+
+
 
     def __len__(self):
         return len(self.image_files)
     
     def __getitem__(self, idx):
-        image_path = self.image_files[idx]
-        label_path = self.label_files[idx]
-
         # Load image
+        image_path = self.image_files[idx]
         image = np.load(image_path)
-        
-        # Load targets
-        targets = np.load(label_path)
 
+        # Load targets
+        if idx >= len(self.label_files):
+            # It's an open images path
+            assert 'open_images_embeddings' in str(image_path), image_path
+            # load bounding box
+            bboxes = self.oi_annotation[self.oi_annotation['ImageID']==image_path.stem]
+            img_original = cv2.imread(str(Path('/ictstr01/groups/shared/users/lion.gleiter/open_images_v4_5/original_data/') / image_path.parent.name / f'{image_path.stem}.jpg'))
+            H, W = img_original.shape[:2]
+            targets = [[(b.YMin + b.YMax) / 2, (b.XMin + b.XMax) / 2, b.YMax - b.YMin, b.XMax - b.XMin] for b in bboxes.itertuples(index=False)]
+            targets = np.array(targets).reshape((-1, 4))
+            targets = targets * np.array([[H, W, H, W]]) / max(H, W)
+
+        else:
+            # It's not an open images path
+            assert 'open_images_embeddings' not in str(image_path), image_path
+            label_path = self.label_files[idx]
+            targets = np.load(label_path)
+
+        # if not hasattr(image, 'shape'):
+        #     print('image', image, flush=True)
+        #     print('image_path', image_path, flush=True)
+            
         # Remove the first dimension if it exists
         if image.shape[0] == 1:
             image = np.squeeze(image, axis=0)
@@ -184,6 +219,8 @@ class DetectionHeadDataModule(pl.LightningDataModule):
                  use_sampler: bool = False
                  ):
         super().__init__()
+        self.n_workers = int(os.environ.get('SLURM_CPUS_PER_TASK', 0)) - 1
+        # self.n_workers = 0
 
         self.train_dir_names = train_dir_names
         self.val_dir_names = val_dir_names
@@ -223,18 +260,18 @@ class DetectionHeadDataModule(pl.LightningDataModule):
             return DataLoader(self.train_dataset, 
                               batch_size=self.batch_size, 
                               sampler=sampler, 
-                              num_workers=4)
+                              num_workers=self.n_workers)
         else: 
             return DataLoader(self.train_dataset, 
                               batch_size=self.batch_size, 
                               shuffle=True, 
-                              num_workers=4)
+                              num_workers=self.n_workers)
 
     
     def val_dataloader(self):
         return DataLoader(self.val_dataset, 
                           batch_size=self.batch_size, 
-                          num_workers=4)
+                          num_workers=self.n_workers)
 
 if __name__ == "__main__":
     from tqdm import tqdm 

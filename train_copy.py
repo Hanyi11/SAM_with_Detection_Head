@@ -1,4 +1,8 @@
 import argparse
+from pathlib import Path
+# import lightning as pl
+# from lightning import loggers as pl_loggers
+# from lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
@@ -19,7 +23,7 @@ def get_args_parser():
     parser.add_argument('--batch_size', type=int, default=4, help='Number of samples in each batch.')
     parser.add_argument('--batches_per_epoch', type=int, default=500, help='Define how many batches are used during training of each epoch.'
                         ' The data is then sampled by a RandomSample instead of using shuffle in the data loader')
-    parser.add_argument('--use_sampler', type=bool, default=False, action='store_true', help='If true the model is trained with a fixed size of batches per epoch'
+    parser.add_argument('--use_sampler', action='store_true', help='If true the model is trained with a fixed size of batches per epoch'
                         'instead of using possibly all data in the datset each epoch. Is useful if you want to train models on multiple datasets and compare them.')
 
     # Learning rate and optimizer parameters
@@ -63,6 +67,8 @@ def train(args) -> None:
     print("Training Parameters:")
     for arg in vars(args):
         print(f"{arg}: {getattr(args, arg)}")
+
+    ckpt_frequency = 50
 
     # Initialize the data module with training and validation data paths and batch size
     data_module = DetectionHeadDataModule(
@@ -121,15 +127,20 @@ def train(args) -> None:
     })
 
     # Prepare a unique checkpointing name combining project and subproject names
-    checkpointing_name = f"{args.project_name}_{args.encoder_name}_{train_dirs_str}_{args.sub_name}"
+    checkpointing_name = f"{args.project_name}_{args.encoder_name}_{train_dirs_str.replace('/', '_')}_{args.sub_name}_{args.use_sampler}_{args.batch_size}_{args.batches_per_epoch}"
 
     # Configure model checkpointing to save all models every 50 epochs with specific filename format
+    ckpt_path = Path("/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/")
+    ckpt_path.mkdir(exist_ok=True)
+    (ckpt_path / checkpointing_name).mkdir(exist_ok=True)
     checkpoint_callback_regular = ModelCheckpoint(
-        save_top_k=-1,
-        every_n_epochs=50,
-        dirpath="checkpoints/",
+        save_top_k=1,
+        save_last=3,
+        every_n_epochs=ckpt_frequency,
+        dirpath=ckpt_path / checkpointing_name,
         filename=f"{checkpointing_name}-{{epoch}}-{{val_loss:.2f}}",
-        verbose=True
+        verbose=True,
+        save_on_train_epoch_end=False  # Ensures correct handling of ckpt_frequency
     )
 
     # Set up a monitor to log learning rate changes at each epoch
@@ -141,6 +152,7 @@ def train(args) -> None:
         callbacks=[checkpoint_callback_regular, lr_monitor],
         max_epochs=args.max_epochs,
         gradient_clip_val=args.gradient_clip_val,
+        check_val_every_n_epoch=ckpt_frequency,
     )
 
     # Start the model training process with the defined model and data module

@@ -59,7 +59,7 @@ def plot_boxes(image, boxes, format='cycxhw_01'):
         original_boxes = boxes
 
     # Plot the image
-    fig, ax = plt.subplots(1, figsize=(8, 8), dpi=20)
+    fig, ax = plt.subplots(1, figsize=(8, 8), dpi=120)
     ax.imshow(image)
 
     # Plot each bounding box
