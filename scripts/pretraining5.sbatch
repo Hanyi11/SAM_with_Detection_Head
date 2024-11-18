@@ -11,6 +11,7 @@
 #SBATCH --cpus-per-task 10
 #SBATCH --mem=80G
 #SBATCH --constraint="a100_40gb|a100_80gb|h100_80gb"
+#SBATCH --exclude=supergpu17
 
 #SBATCH --gres=gpu:1
 
@@ -32,5 +33,5 @@ source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 # python train_copy.py --use_sampler --encoder_name SAM2_large  --train_dirs "open_images_embeddings/validation" --val_dirs NeurIPSCellSeg_val --batch_size 32 --sub_name pretraining --batches_per_epoch 200 --max_epochs 800
 # python train_copy.py --use_sampler --encoder_name CellSAM  --train_dirs "open_images_embeddings/validation" --val_dirs NeurIPSCellSeg_val --batch_size 32 --sub_name pretraining --batches_per_epoch 200 --max_epochs 800
 
-python train_copy.py --use_sampler --encoder_name MicroSAM_large  --train_dirs "open_images_embeddings/validation" --val_dirs NeurIPSCellSeg_val --batch_size 32 --sub_name pretraining --batches_per_epoch 200 --max_epochs 800
-# python train_copy.py --use_sampler --encoder_name MicroSAM_base  --train_dirs "open_images_embeddings/validation" --val_dirs NeurIPSCellSeg_val --batch_size 32 --sub_name pretraining --batches_per_epoch 200 --max_epochs 800
+# python train_copy.py --use_sampler --encoder_name MicroSAM_large  --train_dirs "open_images_embeddings/validation" --val_dirs NeurIPSCellSeg_val --batch_size 32 --sub_name pretraining --batches_per_epoch 200 --max_epochs 800
+python train_copy.py --use_sampler --encoder_name MicroSAM_base  --train_dirs "open_images_embeddings/validation" --val_dirs NeurIPSCellSeg_val --batch_size 32 --sub_name pretraining --batches_per_epoch 200 --max_epochs 800

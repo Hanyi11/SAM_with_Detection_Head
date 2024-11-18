@@ -336,6 +336,7 @@ class OrganoID:
         test_ACC = sorted(list(data_folder.glob("OrganoID/OriginalData/testing/images/ACC*.*")))
         test_Lung = sorted(list(data_folder.glob("OrganoID/OriginalData/testing/images/Lung*.*")))
         test_C = sorted(list(data_folder.glob("OrganoID/OriginalData/testing/images/C*.*")))
+        test_only_mouse = sorted(list(data_folder.glob("OrganoID/MouseOrganoids/testing/images/*.*")))
         test_mouse = sorted(list(data_folder.glob("OrganoID/MouseOrganoids/testing/images/*.*"))) + \
             sorted(list(data_folder.glob("OrganoID/MouseOrganoids/validation/images/*.*"))) + \
             sorted(list(data_folder.glob("OrganoID/MouseOrganoids/training/pre_augmented/images/*.*")))
@@ -357,6 +358,9 @@ class OrganoID:
             self.images = test_C
         elif split == 'test_mouse':
             self.images = test_mouse
+        elif split == 'test_only_mouse':
+            self.images = test_only_mouse
+            self.split = 'test_mouse'
         else:
             raise ValueError(split)
 

@@ -12,7 +12,7 @@ import basicpy
 
 def mask_to_boxes(labels):
     boxes = []
-    for i in np.unique(labels):
+    for i in sorted(np.unique(labels).astype(int).tolist()):
         if i == 0:  # background
             continue
         mask = labels == i
@@ -57,6 +57,8 @@ def plot_boxes(image, boxes, format='cycxhw_01'):
     elif format=='yxyx_px':
         # boxes are in min/max coordinates in pixels. No conversion necessary.
         original_boxes = boxes
+    else:
+        raise ValueError(format)
 
     # Plot the image
     fig, ax = plt.subplots(1, figsize=(8, 8), dpi=120)

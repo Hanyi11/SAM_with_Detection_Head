@@ -98,44 +98,63 @@ def train(args) -> None:
                                         balance_newdata=args.balance_newdata
                                         )
 
-    # if (args.checkpoint_path is not None) and (args.checkpoint_path != ""):
-    #     if args.checkpoint_path.startswith('/'):
-    #         args.checkpoint_path = Path(args.checkpoint_path)
-    #     else:
-    #         args.checkpoint_path = ckpt_path / '-'.join(args.checkpoint_path.split('-')[:-2]) / args.checkpoint_path 
-    #     assert args.checkpoint_path.exists(), args.checkpoint_path
+    if (args.checkpoint_path is not None) and (args.checkpoint_path != ""):
+        if args.checkpoint_path.startswith('/'):
+            args.checkpoint_path = Path(args.checkpoint_path)
+        else:
+            args.checkpoint_path = ckpt_path / '-'.join(args.checkpoint_path.split('-')[:-2]) / args.checkpoint_path 
+        assert args.checkpoint_path.exists(), args.checkpoint_path
+
+        # Load the pre-trained checkpoint and create the model with specified configurations like learning rate and architecture parameters
+        model = DetectionHead.load_from_checkpoint(
+            args.checkpoint_path,
+            learning_rate=args.learning_rate,
+            weight_decay=args.weight_decay,
+            lr_drop=args.lr_drop,
+            set_cost_class=args.set_cost_class,
+            set_cost_bbox=args.set_cost_bbox,
+            set_cost_giou=args.set_cost_giou,
+            max_epochs=args.max_epochs,
+            num_queries=args.num_queries,
+            transformer_dim=args.transformer_dim,
+            nheads=args.nheads,
+            dim_feedforward=args.dim_feedforward,
+            num_layers=args.num_layers,
+            dropout=args.dropout,
+            pre_norm=args.pre_norm,
+            bbox_loss_coef=args.bbox_loss_coef,
+            giou_loss_coef=args.giou_loss_coef,
+            eos_coef=args.eos_coef,
+            aux_loss=args.aux_loss
+        )
+
+    else:
+        print('Training from scratch')
+        # Create the model with specified configurations like learning rate and architecture parameters
+        model = DetectionHead(
+            learning_rate=args.learning_rate,
+            weight_decay=args.weight_decay,
+            lr_drop=args.lr_drop,
+            set_cost_class=args.set_cost_class,
+            set_cost_bbox=args.set_cost_bbox,
+            set_cost_giou=args.set_cost_giou,
+            max_epochs=args.max_epochs,
+            num_queries=args.num_queries,
+            transformer_dim=args.transformer_dim,
+            nheads=args.nheads,
+            dim_feedforward=args.dim_feedforward,
+            num_layers=args.num_layers,
+            dropout=args.dropout,
+            pre_norm=args.pre_norm,
+            bbox_loss_coef=args.bbox_loss_coef,
+            giou_loss_coef=args.giou_loss_coef,
+            eos_coef=args.eos_coef,
+            aux_loss=args.aux_loss
+        )
 
     # for logging:
     train_dirs_str = "_".join(args.train_dirs)
     val_dirs_str = "_".join(args.val_dirs)
-    
-    checkpointing_name = f"{args.project_name}_{args.encoder_name}_{train_dirs_str.replace('/', '_')}_{args.sub_name}_{args.use_sampler}_{args.batch_size}_{args.batches_per_epoch}"
-    (ckpt_path / checkpointing_name).mkdir(exist_ok=True)
-    checkpoint_file_start = list((ckpt_path / checkpointing_name).glob(f"{checkpointing_name}-last_*-val_loss*.ckpt"))[0]
-
-    # Load the pre-trained checkpoint and create the model with specified configurations like learning rate and architecture parameters
-    model = DetectionHead.load_from_checkpoint(
-        checkpoint_file_start,
-        # learning_rate=args.learning_rate,
-        # weight_decay=args.weight_decay,
-        # lr_drop=args.lr_drop,
-        # set_cost_class=args.set_cost_class,
-        # set_cost_bbox=args.set_cost_bbox,
-        # set_cost_giou=args.set_cost_giou,
-        max_epochs=args.max_epochs,
-        # num_queries=args.num_queries,
-        # transformer_dim=args.transformer_dim,
-        # nheads=args.nheads,
-        # dim_feedforward=args.dim_feedforward,
-        # num_layers=args.num_layers,
-        # dropout=args.dropout,
-        # pre_norm=args.pre_norm,
-        # bbox_loss_coef=args.bbox_loss_coef,
-        # giou_loss_coef=args.giou_loss_coef,
-        # eos_coef=args.eos_coef,
-        # aux_loss=args.aux_loss
-    )
-
     # Initialize a CSV logger to record training progress into a CSV file at specified directory
     # csv_logger = pl_loggers.CSVLogger(args.log_dir)
     csv_logger = pl_loggers.CSVLogger(os.path.join(args.log_dir, args.encoder_name, train_dirs_str,''))
@@ -165,7 +184,7 @@ def train(args) -> None:
         save_last=3,
         every_n_epochs=ckpt_frequency,
         dirpath=ckpt_path / checkpointing_name,
-        filename=f"{checkpointing_name}-last_{{epoch}}-{{val_loss:.2f}}_continued",
+        filename=f"{checkpointing_name}-last_{{epoch}}-{{val_loss:.2f}}",
         verbose=True,
         save_on_train_epoch_end=False  # Ensures correct handling of ckpt_frequency
     )
@@ -175,7 +194,7 @@ def train(args) -> None:
         monitor='val_loss',
         every_n_epochs=ckpt_frequency,
         dirpath=ckpt_path / checkpointing_name,
-        filename=f"{checkpointing_name}-best_{{epoch}}-{{val_loss:.2f}}_continued",
+        filename=f"{checkpointing_name}-best_{{epoch}}-{{val_loss:.2f}}",
         verbose=True,
         save_on_train_epoch_end=False  # Ensures correct handling of ckpt_frequency
     )

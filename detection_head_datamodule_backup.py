@@ -1,4 +1,3 @@
-from copy import deepcopy
 from pathlib import Path
 import cv2
 import pandas as pd
@@ -8,8 +7,6 @@ import torch
 import os
 import numpy as np
 from typing import Literal, List
-from tqdm import tqdm
-import multiprocessing as mp
 
 def get_subdirectories_from_dir(directory: str, dir_beginning: str = '', keywords: List[str] = []) -> List[str]:
     """
@@ -55,211 +52,6 @@ def get_files_from_dir(directory: str, file_ending: str = '.png', file_beginning
             matching_files.append(os.path.join(directory, filename))
     
     return matching_files
-
-
-def compute_weights_new_data_only(dataset, factor_new_data, factor_neurips=1, factor_OI=1, factor_empty_patches=0.01):
-    print("start compute weights new data only")
-    w = np.zeros(len(dataset), dtype=float)
-
-    # Reduce weight of empty patches:
-    is_empty = deepcopy(dataset.is_empty)
-
-    print_ids = []
-    print_id_datasets = []
-    print_id_empty = []
-    # Reweight each dataset
-    for ds_name in [
-        'NewData',
-        'NeurIPS',
-        'open_images',
-        None, # All others
-    ]:
-        has_printed = False
-        has_printed_empty = False
-        if ds_name is not None:
-            _w_not_empty = np.zeros_like(w)
-            _w_empty = np.zeros_like(w)
-            for i, img_path in tqdm(enumerate(dataset.image_files)):
-                if ds_name in str(img_path):
-                    if is_empty[i]:
-                        _w_empty[i] = 1.0
-                        if not has_printed_empty:
-                            print_ids.append(i)
-                            print_id_empty.append(True)
-                            print_id_datasets.append(ds_name)
-                            has_printed_empty = True
-                    else:
-                        _w_not_empty[i] = 1.0
-                        if not has_printed:
-                            print_ids.append(i)
-                            print_id_empty.append(False)
-                            print_id_datasets.append(ds_name)
-                            has_printed = True
-                    assert w[i] < 1e-16, img_path
-        else:
-            _w_not_empty = np.zeros_like(w)
-            _w_empty = np.zeros_like(w)
-            for i, img_path in tqdm(enumerate(dataset.image_files)):
-                if ('NewData' in str(img_path)) or ('NeurIPS' in str(img_path)) or ('open_images' in str(img_path)):
-                    continue
-                else:
-                    if is_empty[i]:
-                        _w_empty[i] = 1.0
-                        if not has_printed_empty:
-                            print_ids.append(i)
-                            print_id_empty.append(True)
-                            print_id_datasets.append('other')
-                            has_printed_empty = True
-                    else:
-                        _w_not_empty[i] = 1.0
-                        if not has_printed:
-                            print_ids.append(i)
-                            print_id_empty.append(False)
-                            print_id_datasets.append('other')
-                            has_printed = True
-                    assert w[i] < 1e-16, img_path
-
-        
-        if _w_not_empty.sum() >= 1:
-            _w_not_empty = (_w_not_empty / _w_not_empty.sum()) * (1.0 - factor_empty_patches)
-        if _w_empty.sum() >= 1:
-            _w_empty = (_w_empty / _w_empty.sum()) * factor_empty_patches
-
-        # _w_empty and _w_not_empty sum up together to probability 1. Now reweigh depending on dataset
-
-        if ds_name is None:
-            _w_empty *= (1.0 - factor_new_data)
-            _w_not_empty *= (1.0 - factor_new_data)
-        elif ds_name=='NewData':
-            _w_empty *= factor_new_data
-            _w_not_empty *= factor_new_data
-        elif ds_name=='NeurIPS':
-            _w_empty *= factor_neurips
-            _w_not_empty *= factor_neurips
-        elif ds_name=='open_images':
-            _w_empty *= factor_OI
-            _w_not_empty *= factor_OI
-        else:
-            raise RuntimeError(ds_name)
-        
-        w = np.maximum(w, _w_empty)
-        w = np.maximum(w, _w_not_empty)
-
-    print("done compute weights new data only")
-    for i, ds_name, empty in zip(print_ids, print_id_datasets, print_id_empty):
-        print('weight', w[i], ds_name, empty)
-
-    return np.maximum(w, 0.0)
-
-
-def compute_weights(dataset, factor_neurips=7, factor_OI=7, factor_empty_patches=0.01):
-    print("start compute weights")
-    w = np.zeros(len(dataset), dtype=float)
-
-    # Reduce weight of empty patches:
-    is_empty = deepcopy(dataset.is_empty)
-
-
-    print_ids = []
-    print_id_datasets = []
-    print_id_empty = []
-    # Reweight each dataset
-    for ds_name in [
-        'OrganoID',
-        'OrgaSegment',
-        'OrgaQuant',
-        'OrgaExtractor',
-        'Tellu',
-        'MultiOrg',
-        'NewData',
-        'NeurIPS',
-        'open_images',
-        None, # All others
-    ]:
-        has_printed = False
-        has_printed_empty = False
-
-        if ds_name is not None:
-            _w_not_empty = np.zeros_like(w)
-            _w_empty = np.zeros_like(w)
-            for i, img_path in tqdm(enumerate(dataset.image_files)):
-                if ds_name in str(img_path):
-                    if is_empty[i]:
-                        _w_empty[i] = 1.0
-
-                        if not has_printed_empty:
-                            print_ids.append(i)
-                            print_id_empty.append(True)
-                            print_id_datasets.append(ds_name)
-                            has_printed_empty = True
-
-                    else:
-                        _w_not_empty[i] = 1.0
-                        if not has_printed:
-                            print_ids.append(i)
-                            print_id_empty.append(False)
-                            print_id_datasets.append(ds_name)
-                            has_printed = True
-                    assert w[i] < 1e-16, img_path
-        else:
-            _w_not_empty = np.zeros_like(w)
-            _w_empty = np.zeros_like(w)
-            for i, img_path in tqdm(enumerate(dataset.image_files)):
-                if ('OrganoID' in str(img_path)) or \
-                    ('OrgaSegment' in str(img_path)) or \
-                    ('OrgaQuant' in str(img_path)) or \
-                    ('OrgaExtractor' in str(img_path)) or \
-                    ('Tellu' in str(img_path)) or \
-                    ('MultiOrg' in str(img_path)) or \
-                    ('NewData' in str(img_path)) or \
-                    ('NeurIPS' in str(img_path)) or \
-                    ('open_images' in str(img_path)):
-                    continue
-                else:
-                    if is_empty[i]:
-                        _w_empty[i] = 1.0
-                        if not has_printed_empty:
-                            print_ids.append(i)
-                            print_id_empty.append(True)
-                            print_id_datasets.append('other')
-                            has_printed_empty = True
-                    else:
-                        _w_not_empty[i] = 1.0
-                        if not has_printed:
-                            print_ids.append(i)
-                            print_id_empty.append(False)
-                            print_id_datasets.append('other')
-                            has_printed = True
-                    assert w[i] < 1e-16, img_path
-
-        
-        if _w_not_empty.sum() >= 1:
-            _w_not_empty = (_w_not_empty / _w_not_empty.sum()) * (1.0 - factor_empty_patches)
-        if _w_empty.sum() >= 1:
-            _w_empty = (_w_empty / _w_empty.sum()) * factor_empty_patches
-
-        # _w_empty and _w_not_empty sum up together to probability 1. Now reweigh depending on dataset
-
-        if ds_name is None:
-            _w_empty *= 1.0
-            _w_not_empty *= 1.0
-        elif ds_name=='NeurIPS':
-            _w_empty *= factor_neurips
-            _w_not_empty *= factor_neurips
-        elif ds_name=='open_images':
-            _w_empty *= factor_OI
-            _w_not_empty *= factor_OI
-        else:
-            _w_empty *= 1.0
-            _w_not_empty *= 1.0
-        
-        w = np.maximum(w, _w_empty)
-        w = np.maximum(w, _w_not_empty)
-
-    print("done compute weights")
-    for i, ds_name, empty in zip(print_ids, print_id_datasets, print_id_empty):
-        print('weight', w[i], ds_name, empty)
-    return np.maximum(w, 0.0)
 
 
 
@@ -366,12 +158,6 @@ class DetectionHeadDataset(Dataset):
         self.oi_annotation = pd.read_csv('/ictstr01/groups/shared/users/lion.gleiter/open_images_v4_5/original_data/validation-annotations-bbox.csv')
 
 
-        self.is_empty = np.zeros(len(self.image_files), dtype=bool)
-        for i, label_path in tqdm(enumerate(self.label_files)):
-            targets = np.load(label_path)
-            if targets.shape[0] == 0:
-                self.is_empty[i] = True
-
 
     def __len__(self):
         return len(self.image_files)
@@ -380,8 +166,6 @@ class DetectionHeadDataset(Dataset):
         # Load image
         image_path = self.image_files[idx]
         image = np.load(image_path)
-
-
 
         # Load targets
         if idx >= len(self.label_files):
@@ -427,23 +211,6 @@ class DetectionHeadDataset(Dataset):
         image = torch.tensor(image, dtype=torch.float32)
         padded_targets = torch.tensor(padded_targets, dtype=torch.float32)
         
-
-        # # Prints from which dataset we sampled and its sampling weight for debugging 
-        # w = compute_weights_new_data_only(self, factor_new_data=0.2)
-        # for ds_name in [
-        #     'OrganoID',
-        #     'OrgaSegment',
-        #     'OrgaQuant',
-        #     'OrgaExtractor',
-        #     'Tellu',
-        #     'MultiOrg',
-        #     'NewData',
-        #     'NeurIPS',
-        #     'open_images'
-        # ]:
-        #     if ds_name in str(image_path):
-        #         print('idx:', idx, "ds", ds_name, 'weight', w[idx], num_boxes)
-        
         return image, padded_targets
 
 class DetectionHeadDataModule(pl.LightningDataModule):
@@ -455,10 +222,7 @@ class DetectionHeadDataModule(pl.LightningDataModule):
                  batch_size: int = 32, 
                  num_queries: int = 300,
                  batches_per_epoch: int = 411,
-                 use_sampler: bool = False,
-                 balance_datasets: bool = False,
-                 balance_validation: bool = False,
-                 balance_newdata: float = 0.05,
+                 use_sampler: bool = False
                  ):
         super().__init__()
         self.n_workers = int(os.environ.get('SLURM_CPUS_PER_TASK', 0)) - 1
@@ -471,9 +235,6 @@ class DetectionHeadDataModule(pl.LightningDataModule):
         self.num_queries = num_queries
         self.batches_per_epoch = batches_per_epoch
         self.use_sampler = use_sampler
-        self.balance_datasets = balance_datasets
-        self.balance_newdata = balance_newdata
-        self.balance_validation = balance_validation
 
         
     def setup(self, stage: Literal["fit", "validate", None] = None):
@@ -494,39 +255,19 @@ class DetectionHeadDataModule(pl.LightningDataModule):
                                                     encoder_name=self.encoder_name, 
                                                     num_queries=self.num_queries)
 
-
-
-
     def train_dataloader(self):
-        assert not (self.balance_datasets and (self.balance_newdata > -0.5))
         if self.use_sampler:
-            if self.balance_datasets:
-                w = compute_weights(self.train_dataset)
-                sampler = WeightedRandomSampler(
-                    weights=w,
-                    replacement=True,
-                    num_samples=self.batches_per_epoch * self.batch_size
-                )
-            elif self.balance_newdata > -0.5:
-                print('using self.balance_newdata', self.balance_newdata)
-                w = compute_weights_new_data_only(self.train_dataset, self.balance_newdata)
-                sampler = WeightedRandomSampler(
-                    weights=w,
-                    replacement=True,
-                    num_samples=self.batches_per_epoch * self.batch_size
-                )
-            else:
-                sampler = RandomSampler(
-                    data_source=self.train_dataset,
-                    replacement=True,
-                    num_samples=self.batches_per_epoch * self.batch_size
-                )
+            sampler = RandomSampler(
+                                    data_source=self.train_dataset,
+                                    replacement=True,
+                                    num_samples=self.batches_per_epoch * self.batch_size
+                                    )
 
             return DataLoader(self.train_dataset, 
                               batch_size=self.batch_size, 
                               sampler=sampler, 
                               num_workers=self.n_workers)
-        else:
+        else: 
             return DataLoader(self.train_dataset, 
                               batch_size=self.batch_size, 
                               shuffle=True, 
@@ -534,21 +275,9 @@ class DetectionHeadDataModule(pl.LightningDataModule):
 
     
     def val_dataloader(self):
-        if self.use_sampler and (self.balance_datasets or self.balance_validation):
-            w = compute_weights(self.val_dataset)
-            sampler = WeightedRandomSampler(
-                weights=w,
-                replacement=True,
-                num_samples=self.batch_size * 20
-            )
-            return DataLoader(self.val_dataset, 
-                              batch_size=self.batch_size, 
-                              sampler=sampler, 
-                              num_workers=self.n_workers)
-        else: 
-            return DataLoader(self.val_dataset, 
-                              batch_size=self.batch_size, 
-                              num_workers=self.n_workers)
+        return DataLoader(self.val_dataset, 
+                          batch_size=self.batch_size, 
+                          num_workers=self.n_workers)
 
 if __name__ == "__main__":
     from tqdm import tqdm 
