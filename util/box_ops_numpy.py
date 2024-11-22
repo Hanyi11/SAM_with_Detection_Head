@@ -40,7 +40,7 @@ def xyxy_to_cxcywh(boxes):
     converted_boxes[:, 3] = boxes[:, 3] - boxes[:, 1]  # height
     return converted_boxes
 
-def plot_boxes(image, boxes, format='cycxhw_01'):
+def plot_boxes(image, boxes, format='cycxhw_01', color='red', ax=None, show_image=True):
     """`boxes` should be cycxhw format normalized by the longest image side to values in [0, 1].
     """
     H, W = image.shape[:2]
@@ -61,8 +61,10 @@ def plot_boxes(image, boxes, format='cycxhw_01'):
         raise ValueError(format)
 
     # Plot the image
-    fig, ax = plt.subplots(1, figsize=(8, 8), dpi=120)
-    ax.imshow(image)
+    if ax is None:
+        fig, ax = plt.subplots(1, figsize=(8, 8), dpi=120)
+    if show_image:
+        ax.imshow(image)
 
     # Plot each bounding box
     for box in original_boxes:
@@ -74,10 +76,10 @@ def plot_boxes(image, boxes, format='cycxhw_01'):
         height = y_max - y_min
         
         # Create a rectangle patch
-        rect = patches.Rectangle((x_min, y_min), width, height, linewidth=2, edgecolor='r', facecolor='none')
+        rect = patches.Rectangle((x_min, y_min), width, height, linewidth=2, edgecolor=color, facecolor='none', alpha=0.7)
         
         # Add the patch to the Axes
         ax.add_patch(rect)
 
     # Display the plot
-    plt.show()
+    # plt.show()

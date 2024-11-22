@@ -215,6 +215,71 @@ def patch(im, mask, boxes, size=512):
 
 
 
+def patch_image(im, size=512):
+    H, W = im.shape[:2]
+    padding = int(size / 12)
+
+    # Avoid patching if the patch size is almost the image size:
+    if size >= 0.8 * max(H, W):
+        yield im, 0, 0, max(H, W)
+        return
+
+    # # Compute number of patches per side
+    # n_patches_x = 1
+    # if W > size:
+    #     n_patches_x += int(np.round((W-size) / (size - 2*padding) + 0.3))
+    # n_patches_y = 1
+    # if H > size:
+    #     n_patches_y += int(np.round((H-size) / (size - 2*padding) + 0.3))
+
+    # size_x = int(np.ceil((W + (n_patches_x-1) * 2 * padding) / n_patches_x))
+    # size_y = int(np.ceil((H + (n_patches_y-1) * 2 * padding) / n_patches_y))
+    # size = max(size_x, size_y)
+
+    # Compute number of patches per side with updated size
+    n_patches_x = 1
+    if W > size:
+        n_patches_x += int(np.ceil((W-size) / (size - 2*padding)))
+    n_patches_y = 1
+    if H > size:
+        n_patches_y += int(np.ceil((H-size) / (size - 2*padding)))
+
+    grid_x = np.round(np.linspace(0, W-size, n_patches_x)).astype(int).tolist()
+    grid_y = np.round(np.linspace(0, H-size, n_patches_y)).astype(int).tolist()
+
+    # Iteratively yield patches
+    for im_start_x in grid_x:
+        for im_start_y in grid_y:
+            requires_zero_background = False
+            im_end_x = im_start_x + size
+            im_end_y = im_start_y + size
+
+            if W < im_end_x:
+                requires_zero_background = True
+                im_end_x = W
+            
+            if H < im_end_y:
+                requires_zero_background = True
+                im_end_y = H
+                
+            # print(size, n_patches_x, n_patches_y, W, H, im_start_x, im_start_y, im_end_x, im_end_y)
+            
+
+            if not requires_zero_background:
+                im_crop = im[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
+            else:
+                if im.ndim == 2:
+                    im_crop = np.zeros((size, size), dtype=im.dtype)
+                    im_crop[:int(im_end_y)-int(im_start_y), :int(im_end_x)-int(im_start_x)] = im[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
+                else:
+                    im_crop = np.zeros((size, size, im.shape[2]), dtype=im.dtype)
+                    im_crop[:int(im_end_y)-int(im_start_y), :int(im_end_x)-int(im_start_x), :] = im[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
+                
+            yield im_crop, int(im_start_x), int(im_start_y), size
+
+
+
+
 class OrgaQuant:
     def __init__(self, split=None, data_folder = base_datadir):
         self.split = split

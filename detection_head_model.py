@@ -91,6 +91,7 @@ class DetectionHead(pl.LightningModule):
         # Feed transformer output into MLP to get class and bbox
         outputs_class = self.class_embed(target)
         outputs_coord = self.bbox_embed(target).sigmoid()
+        # print('class and coord shapes', outputs_class.shape, outputs_coord.shape)  # [1, 1, 100, 2], [1, 1, 100, 4]
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
@@ -117,7 +118,7 @@ class DetectionHead(pl.LightningModule):
             num_boxes = filtered_boxes.size(0)
             processed_targets.append({
                 'boxes': filtered_boxes,
-                'labels': torch.zeros(num_boxes, dtype=torch.int64, device=device)  # All labels are 0
+                'labels': torch.zeros(num_boxes, dtype=torch.int64, device=device)  # Here, labels are 0 = ground truth, 1 = no object
             })
         
         # Loss

@@ -23,6 +23,7 @@ from pathlib import Path
 # import cv2
 # import numpy as np
 import scipy
+import shapely
 
 from .box_ops_numpy import cxcywh_to_xyxy
 
@@ -184,6 +185,77 @@ def get_predictions2(split, ds_name, pred_folder, im, im_ID, cthres = 0.96):
     pred_offsets = np.concatenate(pred_offsets, axis=0)
 
     return pred_boxes, pred_scores, pred_masks, pred_patch_numbers, pred_offsets
+
+
+
+def stitch_contours(contours, patch_ids, offsets, boxes, scores):
+    adjacancy = np.zeros((len(contours), len(contours)), dtype=bool)
+
+    for i in range(len(contours)):
+        contour = contours[i]
+        patch_id = patch_ids[i]
+        offset = offsets[i]
+        
+        for other_patch_id in np.unique(patch_ids):
+            if patch_id == other_patch_id:
+                # Same patch
+                continue
+
+            # Indices for contours from the other patch
+            other_indices = patch_ids == other_patch_id
+
+            if not np.any(other_indices):
+                continue
+
+            for j in np.nonzero(other_indices)[0]:
+                offsets_other = offsets[j]
+        
+                y_left = np.maximum(offset[0], offsets_other[0])
+                y_right = np.minimum(offset[2], offsets_other[2])
+                x_left = np.maximum(offset[1], offsets_other[1])
+                x_right = np.minimum(offset[3], offsets_other[3])
+                overlap = shapely.Polygon((
+                    (x_left, y_left),
+                    (x_left, y_right),
+                    (x_right, y_right),
+                    (x_right, y_left),
+                    (x_left, y_left),
+                ))
+            
+                contour_other = contours[j]
+                union = shapely.intersection(
+                    overlap,
+                    shapely.union(contour, contour_other)
+                ).area
+                intersection = shapely.intersection(
+                    overlap,
+                    shapely.intersection(contour, contour_other)
+                ).area
+                if (union > 0) and (intersection / union > 0.9):
+                    adjacancy[i, j] = True
+                    adjacancy[j, i] = True
+
+    n_components, connected_component_labels = scipy.sparse.csgraph.connected_components(adjacancy, directed=False)
+
+
+    contours_out = []
+    # masks_out = np.zeros((n_components, masks.shape[1], masks.shape[2]), dtype=bool)
+    boxes_out = np.zeros((n_components, 4), dtype=float)
+    scores_out = np.zeros((n_components,), dtype=float)
+
+    for k in range(n_components):
+        cc_ids = connected_component_labels==k
+        cc_contours = [contours[cc_id] for cc_id in np.nonzero(cc_ids)[0]]
+        contours_out.append(shapely.union_all(cc_contours))
+        # masks_out[k] = np.any(masks[cc_ids], axis=0)
+        boxes_out[k] = np.array([np.min(boxes[cc_ids, 0]), np.min(boxes[cc_ids, 1]), 
+                                 np.max(boxes[cc_ids, 2]), np.max(boxes[cc_ids, 3])])
+        scores_out[k] = np.max(scores[cc_ids])
+
+
+    return contours_out, boxes_out, scores_out
+
+
 
 
 
