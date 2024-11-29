@@ -10,6 +10,7 @@
 # import os
 # import time
 # import numpy as np
+import json
 from scipy.optimize import linear_sum_assignment
 from skimage.measure import label
 
@@ -22,6 +23,8 @@ import cv2
 from pathlib import Path
 # import cv2
 # import numpy as np
+import rasterio
+from rasterio.features import shapes as rio_shapes
 import scipy
 import shapely
 
@@ -621,6 +624,39 @@ def compute_iou_matrix_segmentation(pred_masks, gt_masks):
     
     for i, pred_mask in enumerate(pred_masks):
         iou_matrix[i, :] = compute_iou_masks_array(pred_instance=pred_mask, gt_instances=gt_masks)
+        
+    return iou_matrix
+
+
+def mask_to_contour(mask):
+    # Converts a binary mask into a shapely MultiPolygon.
+    outlines = []
+    for p, v in rio_shapes(mask, 
+                            mask=mask, 
+                            connectivity=8):
+        if v==1:
+            outlines.append(shapely.from_geojson(json.dumps(p)))
+        else:
+            raise RuntimeError(f'value: {v}, polygon: {p}')
+    return shapely.union_all(outlines)
+
+
+def compute_iou_matrix_segmentation_contours(pred_contours, gt_masks):
+    num_preds = len(pred_contours)
+    num_gts = gt_masks.shape[0]
+    
+    # Create the IoU matrix
+    iou_matrix = np.zeros((num_preds, num_gts))
+    
+    for j, gt_mask in enumerate(gt_masks):
+        gt_contour = mask_to_contour(gt_mask)
+        for i, pred_contour in enumerate(pred_contours):
+            intersection = shapely.intersection(gt_contour, pred_contour).area
+            union = shapely.union(gt_contour, pred_contour).area
+            if union > 0:
+                iou_matrix[i, j] = intersection / union
+            else:
+                iou_matrix[i, j] = 0.0
         
     return iou_matrix
     

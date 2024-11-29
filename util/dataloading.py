@@ -23,6 +23,7 @@ def compute_median_size_image(boxes):
     median_size = np.median(np.concatenate([heights, widths], axis=0), axis=0)
     if np.isnan(median_size):
         print('boxes', boxes)
+        return 512
     return median_size
 
 
@@ -41,7 +42,7 @@ def compute_median_size(ds):
 
 
 def compute_patch_size(median_size):
-    patch_size = max(int(median_size * 8), 256)
+    patch_size = max(int(median_size * 8), 256)  # TODO: change to 512?
     return patch_size
 
 
@@ -120,15 +121,25 @@ def filter_boxes_yxyx(boxes, ymin, xmin, ymax, xmax, threshold=10):
     
     intersection = np.maximum(x_right - x_left, 0) * np.maximum(y_right - y_left, 0)
 
-    has_overlap = intersection >= threshold
+    boxes_area = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
+
+    # 0 % overlap means box is fully out of boundaries, 100 % fully within bounds
+    overlap = np.where(boxes_area > 0, intersection / boxes_area, 0.0)
+    assert np.all(overlap >= 0.0), overlap
+    assert np.all(overlap <= 1.0), overlap
+
+    # Filters boxes which have at least 20 % of their area within the patch
+    # has_overlap = intersection >= threshold
+    has_overlap = overlap >= 0.2  # 0.05
 
     boxes_out = deepcopy(boxes)
     boxes_out = boxes_out[has_overlap]
     boxes_out = np.minimum(boxes_out, np.array([[ymax, xmax, ymax, xmax]]))
     boxes_out = np.maximum(boxes_out, np.array([[ymin, xmin, ymin, xmin]]))
     boxes_out -= np.array([[ymin, xmin, ymin, xmin]], dtype=float)
+    overlap = overlap[has_overlap]
 
-    return boxes_out
+    return boxes_out, overlap
 
 
 def patch(im, mask, boxes, size=512):
@@ -137,7 +148,7 @@ def patch(im, mask, boxes, size=512):
 
     # Avoid patching if the patch size is almost the image size:
     if size >= 0.8 * max(H, W):
-        yield im, mask, boxes, 0, 0
+        yield im, mask, boxes, np.ones((boxes.shape[0],), dtype=float), 0, 0
         return
 
     # Compute number of patches per side
@@ -209,9 +220,9 @@ def patch(im, mask, boxes, size=512):
                     mask_crop = np.zeros((size, size), dtype=mask.dtype)
                     mask_crop[:int(im_end_y)-int(im_start_y), :int(im_end_x)-int(im_start_x)] = mask[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
 
-            boxes_crop = filter_boxes_yxyx(boxes, ymin=im_start_y, xmin=im_start_x, ymax=im_end_y, xmax=im_end_x, threshold=10)
+            boxes_crop, overlap = filter_boxes_yxyx(boxes, ymin=im_start_y, xmin=im_start_x, ymax=im_end_y, xmax=im_end_x, threshold=10)
 
-            yield im_crop, mask_crop, boxes_crop, int(im_start_x), int(im_start_y)
+            yield im_crop, mask_crop, boxes_crop, overlap, int(im_start_x), int(im_start_y)
 
 
 
@@ -293,8 +304,12 @@ class OrgaQuant:
         train_organoids = sorted(list(data_folder.glob("Intestinal Organoid Dataset/Intestinal Organoid Dataset/train/*.*")))
         test_organoids = sorted(list(data_folder.glob("Intestinal Organoid Dataset/Intestinal Organoid Dataset/test/*.*")))
 
+        val_size = len(train_organoids) // 10
         if split == 'train':
-            self.images = train_organoids
+            self.images = train_organoids[:-val_size]
+            self.annotations = self.train_annotations
+        elif split == 'val':
+            self.images = train_organoids[-val_size:]
             self.annotations = self.train_annotations
         elif split == 'test':
             self.images = test_organoids
@@ -464,11 +479,11 @@ class OrgaExtractor:
 
         test = sorted(list(data_folder.glob("OrgaExtractor/test/input_*.*")))
 
-        
+        val_size = len(train) // 10
         if split == 'train':
-            self.images = train
-        # elif split == 'val':
-        #     self.images = val
+            self.images = train[:-val_size]
+        elif split == 'val':
+            self.images = train[-val_size:]
         elif split == 'test':
             self.images = test
         else:
@@ -553,7 +568,11 @@ class NewData:
         train = sorted(list(data_folder.glob("own_data/organoid_img/*.*")))
 
         if split == 'train':
-            self.images = train
+            self.images = train[:-6]
+        elif split == 'val':
+            self.images = train[-6:-3]
+        elif split == 'test':
+            self.images = train[-3:]
         else:
             raise ValueError(split)
 
@@ -599,9 +618,12 @@ class Tellu:
         train_organoids = sorted(list(data_folder.glob("Tellu/OrganoidDataset/train/images/*.*")))
         val_organoids = sorted(list(data_folder.glob("Tellu/OrganoidDataset/val/images/*.*")))
 
+        val_size = len(train_organoids) // 10
         if split == 'train':
-            self.images = train_organoids
+            self.images = train_organoids[:-val_size]
         elif split == 'val':
+            self.images = train_organoids[-val_size:]
+        elif split == 'test':
             self.images = val_organoids
         else:
             raise ValueError(split)
@@ -640,10 +662,18 @@ class MultiOrg:
         test_normal = sorted(list(data_folder.glob("MultiOrg/test/Normal/Plate_*/image_*/image_*.tiff")))
         test_macros = sorted(list(data_folder.glob("MultiOrg/test/Macros/Plate_*/image_*/image_*.tiff")))
 
+
+        val_size_normal = len(train_normal) // 10
+        val_size_macros = len(train_macros) // 10
+
         if split == 'train_normal':
-            self.images = train_normal
+            self.images = train_normal[:-val_size_normal]
         elif split == 'train_macros':
-            self.images = train_macros
+            self.images = train_macros[:-val_size_macros]
+        elif split == 'val_normal':
+            self.images = train_normal[-val_size_normal:]
+        elif split == 'val_macros':
+            self.images = train_macros[-val_size_macros:]
         elif split == 'test_normal':
             self.images = test_normal
         elif split == 'test_macros':

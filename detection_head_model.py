@@ -26,6 +26,7 @@ class DetectionHead(pl.LightningModule):
                 aux_loss: bool = False,
                 ):
         super().__init__()
+        self.save_hyperparameters()
 
         # Parameters for optimizer and scheduler
         self.learning_rate = learning_rate

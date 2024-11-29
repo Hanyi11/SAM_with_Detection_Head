@@ -18,70 +18,73 @@ from util.box_ops_numpy import mask_to_boxes, cxcywh_to_xyxy, xyxy_to_cxcywh, pl
 from util import dataloading as dl
 
 
-img_folder_base = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patch_images') 
-box_folder_base = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patch_bbox_gt')
-seg_folder_base = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patch_seg_gt')
+img_folder_base = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data/patch_images') 
+box_folder_base = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data/patch_bbox_gt')
+# overlap_folder_base = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data/patch_bbox_overlap_gt')
+seg_folder_base = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data/patch_seg_gt')
 
 
 
 if __name__=="__main__":
-    test_sets = [
-        # dl.OrganoID(split='test'),
-        # dl.OrganoID(split='test_Lung'),
-        # dl.OrganoID(split='test_ACC'),
-        # dl.OrganoID(split='test_C'),
-        # dl.OrganoID(split='test_mouse'),
-        dl.OrgaSegment(split='test'),
-    ]
-    for ds in test_sets:
-        subdir = f'{str(ds)}_{ds.split}'
+    factor = 1.25
+    # test_sets = [
+    #     # dl.OrganoID(split='test'),
+    #     # dl.OrganoID(split='test_Lung'),
+    #     # dl.OrganoID(split='test_ACC'),
+    #     # dl.OrganoID(split='test_C'),
+    #     # dl.OrganoID(split='test_mouse'),
+    #     dl.OrgaSegment(split='test'),
+    # ]
+    # for ds in test_sets:
+    #     subdir = f'{str(ds)}_{ds.split}'
 
-        for im, mask, boxes, im_path, im_ID in ds:
-            im, flatfield = dl.normalize(im, smoothness=10)
+    #     for im, mask, boxes, im_path, im_ID in ds:
+    #         im, flatfield = dl.normalize(im, smoothness=10)
 
 
-            img_folder = img_folder_base / 'test' / subdir / f'im_{im_ID}'
-            img_folder.mkdir(exist_ok=True, parents=True)
+    #         img_folder = img_folder_base / 'test' / subdir / f'im_{im_ID}'
+    #         img_folder.mkdir(exist_ok=True, parents=True)
 
-            box_folder = box_folder_base / 'test' / subdir / f'im_{im_ID}'
-            box_folder.mkdir(exist_ok=True, parents=True)
+    #         box_folder = box_folder_base / 'test' / subdir / f'im_{im_ID}'
+    #         box_folder.mkdir(exist_ok=True, parents=True)
 
-            seg_folder = seg_folder_base / 'test' / subdir / f'im_{im_ID}'
-            seg_folder.mkdir(exist_ok=True, parents=True)
+    #         seg_folder = seg_folder_base / 'test' / subdir / f'im_{im_ID}'
+    #         seg_folder.mkdir(exist_ok=True, parents=True)
 
-            # Choose 4 patches overlapping at least by 1/6 for all test data
-            H, W = im.shape[:2]
-            patch_size = int(np.ceil(max(H, W) / (2 - 1/6)))
+    #         # Choose 4 patches overlapping at least by 1/6 for all test data
+    #         H, W = im.shape[:2]
+    #         patch_size = int(np.ceil(max(H, W) / (2 - 1/6)))
 
-            offsets = []
-            for i, (im_crop, mask_crop, boxes_crop, offset_x, offset_y) in enumerate(dl.patch(im, mask, boxes, size=patch_size)):
-                cv2.imwrite(str(img_folder / f'patch_{i}.png'), im_crop)
-                if mask_crop is not None:
-                    np.save(seg_folder / f'patch_{i}.npy', mask_crop, allow_pickle=False)
+    #         offsets = []
+    #         for i, (im_crop, mask_crop, boxes_crop, overlap, offset_x, offset_y) in enumerate(dl.patch(im, mask, boxes, size=patch_size)):
+    #             cv2.imwrite(str(img_folder / f'patch_{i}.png'), im_crop)
+    #             if mask_crop is not None:
+    #                 np.save(seg_folder / f'patch_{i}.npy', mask_crop, allow_pickle=False)
 
-                H_crop, W_crop = im_crop.shape[:2]
-                boxes_crop = xyxy_to_cxcywh(boxes_crop / max(H_crop, W_crop))
-                np.save(box_folder / f'patch_{i}.npy', boxes_crop, allow_pickle=False)
+    #             H_crop, W_crop = im_crop.shape[:2]
+    #             boxes_crop = xyxy_to_cxcywh(boxes_crop / max(H_crop, W_crop))
+    #             np.save(box_folder / f'patch_{i}.npy', boxes_crop, allow_pickle=False)
+    
+    #             np.save(box_folder / f'patch_{i}_overlap.npy', overlap, allow_pickle=False)
 
-                offsets.append([i, offset_y, offset_x])
-            offsets = np.array(offsets)
-            np.save(box_folder / f'offsets.npy', offsets, allow_pickle=False)
-            np.save(box_folder / f'boxes_original.npy', np.array(boxes), allow_pickle=False)
-            if mask is not None:
-                np.save(seg_folder / f'mask_original.npy', mask, allow_pickle=False)
+    #             offsets.append([i, offset_y, offset_x])
+    #         offsets = np.array(offsets)
+    #         np.save(box_folder / f'offsets.npy', offsets, allow_pickle=False)
+    #         np.save(box_folder / f'boxes_original.npy', np.array(boxes), allow_pickle=False)
+    #         if mask is not None:
+    #             np.save(seg_folder / f'mask_original.npy', mask, allow_pickle=False)
 
 
 
     # # Patch size per dataset
     # val_sets = [
-    #     dl.OrgaQuant(split='test'),
-    #     dl.OrgaExtractor(split='test'),
+    #     dl.OrgaQuant(split='val'),
+    #     dl.OrgaExtractor(split='val'),
     #     dl.OrgaSegment(split='val'),
-    #     # dl.NeurIPSCellSeg(split='val'),
     # ]
     # for ds in val_sets:
     #     subdir = f'{str(ds)}_{ds.split}'
-    #     patch_size = dl.compute_patch_size(dl.compute_median_size(ds))
+    #     patch_size = int(dl.compute_patch_size(dl.compute_median_size(ds)) * factor)
 
     #     for im, mask, boxes, im_path, im_ID in ds:
     #         im, flatfield = dl.normalize(im, smoothness=10)
@@ -96,11 +99,10 @@ if __name__=="__main__":
     #         seg_folder = seg_folder_base / 'val' / subdir / f'im_{im_ID}'
     #         seg_folder.mkdir(exist_ok=True, parents=True)
 
-    #         # Choose 4 patches overlapping at least by 1/6 for all test data
-    #         H, W = im.shape[:2]
+    #         # H, W = im.shape[:2]
 
     #         offsets = []
-    #         for i, (im_crop, mask_crop, boxes_crop, offset_x, offset_y) in enumerate(dl.patch(im, mask, boxes, size=patch_size)):
+    #         for i, (im_crop, mask_crop, boxes_crop, overlap, offset_x, offset_y) in enumerate(dl.patch(im, mask, boxes, size=patch_size)):
     #             if dl.is_empty(im_crop) and (boxes_crop.shape[0]==0):
     #                 continue
 
@@ -111,6 +113,8 @@ if __name__=="__main__":
     #             H_crop, W_crop = im_crop.shape[:2]
     #             boxes_crop = xyxy_to_cxcywh(boxes_crop / max(H_crop, W_crop))
     #             np.save(box_folder / f'patch_{i}.npy', boxes_crop, allow_pickle=False)
+    
+    #             np.save(box_folder / f'patch_{i}_overlap.npy', overlap, allow_pickle=False)
 
     #             offsets.append([i, offset_y, offset_x])
     #         offsets = np.array(offsets)
@@ -130,7 +134,7 @@ if __name__=="__main__":
     # ]
     # for ds in train_sets:
     #     subdir = f'{str(ds)}_{ds.split}'
-    #     patch_size = dl.compute_patch_size(dl.compute_median_size(ds))
+    #     patch_size = int(dl.compute_patch_size(dl.compute_median_size(ds)) * factor)
 
     #     for im, mask, boxes, im_path, im_ID in ds:
     #         im, flatfield = dl.normalize(im, smoothness=10)
@@ -145,11 +149,11 @@ if __name__=="__main__":
     #         seg_folder = seg_folder_base / 'train' / subdir / f'im_{im_ID}'
     #         seg_folder.mkdir(exist_ok=True, parents=True)
 
-    #         # Choose 4 patches overlapping at least by 1/6 for all test data
-    #         H, W = im.shape[:2]
+    #         # # Choose 4 patches overlapping at least by 1/6 for all test data
+    #         # H, W = im.shape[:2]
 
     #         offsets = []
-    #         for i, (im_crop, mask_crop, boxes_crop, offset_x, offset_y) in enumerate(dl.patch(im, mask, boxes, size=patch_size)):
+    #         for i, (im_crop, mask_crop, boxes_crop, overlap, offset_x, offset_y) in enumerate(dl.patch(im, mask, boxes, size=patch_size)):
     #             if dl.is_empty(im_crop) and (boxes_crop.shape[0]==0):
     #                 continue
     #             cv2.imwrite(str(img_folder / f'patch_{i}.png'), im_crop)
@@ -159,6 +163,8 @@ if __name__=="__main__":
     #             H_crop, W_crop = im_crop.shape[:2]
     #             boxes_crop = xyxy_to_cxcywh(boxes_crop / max(H_crop, W_crop))
     #             np.save(box_folder / f'patch_{i}.npy', boxes_crop, allow_pickle=False)
+    
+    #             np.save(box_folder / f'patch_{i}_overlap.npy', overlap, allow_pickle=False)
 
     #             offsets.append([i, offset_y, offset_x])
     #         offsets = np.array(offsets)
@@ -166,101 +172,107 @@ if __name__=="__main__":
 
 
 
-    # # Patch size per image
-    # val_sets = [
-    #     dl.OrganoID(split='val'),
-    #     dl.NeurIPSCellSeg(split='val'),
-    #     dl.Tellu(split='val'),
-    #     dl.MultiOrg(split='test_normal'),
-    #     dl.MultiOrg(split='test_macros'),
-    # ]
-    # for ds in val_sets:
-    #     subdir = f'{str(ds)}_{ds.split}'
+    # Patch size per image
+    val_sets = [
+        # dl.OrganoID(split='val'),
+        # dl.NeurIPSCellSeg(split='val'),
+        # dl.NewData(split='val'),
+        # dl.Tellu(split='val'),
+        # dl.MultiOrg(split='val_normal'),
+        dl.MultiOrg(split='val_macros'),
+    ]
+    for ds in val_sets:
+        subdir = f'{str(ds)}_{ds.split}'
 
-    #     for im, mask, boxes, im_path, im_ID in ds:
-    #         im, flatfield = dl.normalize(im, smoothness=10)
-
-
-    #         img_folder = img_folder_base / 'val' / subdir / f'im_{im_ID}'
-    #         img_folder.mkdir(exist_ok=True, parents=True)
-
-    #         box_folder = box_folder_base / 'val' / subdir / f'im_{im_ID}'
-    #         box_folder.mkdir(exist_ok=True, parents=True)
-
-    #         seg_folder = seg_folder_base / 'val' / subdir / f'im_{im_ID}'
-    #         seg_folder.mkdir(exist_ok=True, parents=True)
-
-    #         # Choose 4 patches overlapping at least by 1/6 for all test data
-    #         H, W = im.shape[:2]
-    #         patch_size = dl.compute_patch_size(dl.compute_median_size_image(boxes))
-
-    #         offsets = []
-    #         for i, (im_crop, mask_crop, boxes_crop, offset_x, offset_y) in enumerate(dl.patch(im, mask, boxes, size=patch_size)):
-    #             if dl.is_empty(im_crop) and (boxes_crop.shape[0]==0):
-    #                 continue
-    #             cv2.imwrite(str(img_folder / f'patch_{i}.png'), im_crop)
-    #             if mask_crop is not None:
-    #                 np.save(seg_folder / f'patch_{i}.npy', mask_crop, allow_pickle=False)
-
-    #             H_crop, W_crop = im_crop.shape[:2]
-    #             boxes_crop = xyxy_to_cxcywh(boxes_crop / max(H_crop, W_crop))
-    #             np.save(box_folder / f'patch_{i}.npy', boxes_crop, allow_pickle=False)
-
-    #             offsets.append([i, offset_y, offset_x])
-    #         offsets = np.array(offsets)
-    #         np.save(box_folder / f'offsets.npy', offsets, allow_pickle=False)
+        for im, mask, boxes, im_path, im_ID in ds:
+            im, flatfield = dl.normalize(im, smoothness=10)
 
 
+            img_folder = img_folder_base / 'val' / subdir / f'im_{im_ID}'
+            img_folder.mkdir(exist_ok=True, parents=True)
 
-    # # # Patch size per image
-    # # train_sets = [
-    # #     dl.NeurIPSCellSeg(split='train'),
-    # #     dl.OrganoID(split='train'),
-    # #     dl.NewData(split='train'),
-    # #     dl.Tellu(split='train'),
-    # #     dl.MultiOrg(split='train_normal'),
-    # #     dl.MultiOrg(split='train_macros'),
-    # # ]
-    # # for ds in train_sets:
-    # #     subdir = f'{str(ds)}_{ds.split}'
+            box_folder = box_folder_base / 'val' / subdir / f'im_{im_ID}'
+            box_folder.mkdir(exist_ok=True, parents=True)
 
-    # #     # for ii in range(len(ds)):
-    # #     #     if ii < 665:
-    # #     #         continue
-    # #     #     im, mask, boxes, im_path, im_ID = ds[ii]
-    # #     for im, mask, boxes, im_path, im_ID in ds:
-    # #         if boxes.shape[0]==0:
-    # #             print("No annotations found for", im_path)
-    # #             continue
+            seg_folder = seg_folder_base / 'val' / subdir / f'im_{im_ID}'
+            seg_folder.mkdir(exist_ok=True, parents=True)
 
-    # #         im, flatfield = dl.normalize(im, smoothness=10)
+            # # Choose 4 patches overlapping at least by 1/6 for all test data
+            # H, W = im.shape[:2]
+            patch_size = int(dl.compute_patch_size(dl.compute_median_size_image(boxes)) * factor)
+
+            offsets = []
+            for i, (im_crop, mask_crop, boxes_crop, overlap, offset_x, offset_y) in enumerate(dl.patch(im, mask, boxes, size=patch_size)):
+                if dl.is_empty(im_crop) and (boxes_crop.shape[0]==0):
+                    continue
+                cv2.imwrite(str(img_folder / f'patch_{i}.png'), im_crop)
+                if mask_crop is not None:
+                    np.save(seg_folder / f'patch_{i}.npy', mask_crop, allow_pickle=False)
+
+                H_crop, W_crop = im_crop.shape[:2]
+                boxes_crop = xyxy_to_cxcywh(boxes_crop / max(H_crop, W_crop))
+                np.save(box_folder / f'patch_{i}.npy', boxes_crop, allow_pickle=False)
+    
+                np.save(box_folder / f'patch_{i}_overlap.npy', overlap, allow_pickle=False)
+
+                offsets.append([i, offset_y, offset_x])
+                del im_crop
+            offsets = np.array(offsets)
+            np.save(box_folder / f'offsets.npy', offsets, allow_pickle=False)
 
 
-    # #         img_folder = img_folder_base / 'train' / subdir / f'im_{im_ID}'
-    # #         img_folder.mkdir(exist_ok=True, parents=True)
 
-    # #         box_folder = box_folder_base / 'train' / subdir / f'im_{im_ID}'
-    # #         box_folder.mkdir(exist_ok=True, parents=True)
+    # Patch size per image
+    train_sets = [
+        dl.NeurIPSCellSeg(split='train'),
+        dl.OrganoID(split='train'),
+        dl.NewData(split='train'),
+        dl.Tellu(split='train'),
+        dl.MultiOrg(split='train_normal'),
+        dl.MultiOrg(split='train_macros'),
+    ]
+    for ds in train_sets:
+        subdir = f'{str(ds)}_{ds.split}'
 
-    # #         seg_folder = seg_folder_base / 'train' / subdir / f'im_{im_ID}'
-    # #         seg_folder.mkdir(exist_ok=True, parents=True)
+        # for ii in range(len(ds)):
+        #     if ii < 665:
+        #         continue
+        #     im, mask, boxes, im_path, im_ID = ds[ii]
+        for im, mask, boxes, im_path, im_ID in ds:
+            if boxes.shape[0]==0:
+                print("No annotations found for", im_path)
+                continue
 
-    # #         # Choose 4 patches overlapping at least by 1/6 for all test data
-    # #         H, W = im.shape[:2]
-    # #         patch_size = dl.compute_patch_size(dl.compute_median_size_image(boxes))
+            im, flatfield = dl.normalize(im, smoothness=10)
 
-    # #         offsets = []
-    # #         for i, (im_crop, mask_crop, boxes_crop, offset_x, offset_y) in enumerate(dl.patch(im, mask, boxes, size=patch_size)):
-    # #             if dl.is_empty(im_crop) and (boxes_crop.shape[0]==0):
-    # #                 continue
-    # #             cv2.imwrite(str(img_folder / f'patch_{i}.png'), im_crop)
-    # #             if mask_crop is not None:
-    # #                 np.save(seg_folder / f'patch_{i}.npy', mask_crop, allow_pickle=False)
 
-    # #             H_crop, W_crop = im_crop.shape[:2]
-    # #             boxes_crop = xyxy_to_cxcywh(boxes_crop / max(H_crop, W_crop))
-    # #             np.save(box_folder / f'patch_{i}.npy', boxes_crop, allow_pickle=False)
+            img_folder = img_folder_base / 'train' / subdir / f'im_{im_ID}'
+            img_folder.mkdir(exist_ok=True, parents=True)
 
-    # #             offsets.append([i, offset_y, offset_x])
-    # #         offsets = np.array(offsets)
-    # #         np.save(box_folder / f'offsets.npy', offsets, allow_pickle=False)
+            box_folder = box_folder_base / 'train' / subdir / f'im_{im_ID}'
+            box_folder.mkdir(exist_ok=True, parents=True)
+
+            seg_folder = seg_folder_base / 'train' / subdir / f'im_{im_ID}'
+            seg_folder.mkdir(exist_ok=True, parents=True)
+
+            # # Choose 4 patches overlapping at least by 1/6 for all test data
+            # H, W = im.shape[:2]
+            patch_size = int(dl.compute_patch_size(dl.compute_median_size_image(boxes)) * factor)
+
+            offsets = []
+            for i, (im_crop, mask_crop, boxes_crop, overlap, offset_x, offset_y) in enumerate(dl.patch(im, mask, boxes, size=patch_size)):
+                if dl.is_empty(im_crop) and (boxes_crop.shape[0]==0):
+                    continue
+                cv2.imwrite(str(img_folder / f'patch_{i}.png'), im_crop)
+                if mask_crop is not None:
+                    np.save(seg_folder / f'patch_{i}.npy', mask_crop, allow_pickle=False)
+
+                H_crop, W_crop = im_crop.shape[:2]
+                boxes_crop = xyxy_to_cxcywh(boxes_crop / max(H_crop, W_crop))
+                np.save(box_folder / f'patch_{i}.npy', boxes_crop, allow_pickle=False)
+    
+                np.save(box_folder / f'patch_{i}_overlap.npy', overlap, allow_pickle=False)
+
+                offsets.append([i, offset_y, offset_x])
+            offsets = np.array(offsets)
+            np.save(box_folder / f'offsets.npy', offsets, allow_pickle=False)

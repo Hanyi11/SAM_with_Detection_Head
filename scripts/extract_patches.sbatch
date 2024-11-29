@@ -1,32 +1,24 @@
 #!/bin/bash
 
-#SBATCH --job-name tmp
-#SBATCH -o /home/icb/lion.gleiter/projects/celldeathpred_reanalysis/slurm_logs/%x/%j_output.log
-#SBATCH -e /home/icb/lion.gleiter/projects/celldeathpred_reanalysis/slurm_logs/%x/%j_error.log
+#SBATCH --job-name extract_patches
+#SBATCH -o /ictstr01/groups/shared/users/lion.gleiter/organoid_sam/logs/slurm/%x/%j_output.log
+#SBATCH -e /ictstr01/groups/shared/users/lion.gleiter/organoid_sam/logs/slurm/%x/%j_error.log
 
-#SBATCH --qos gpu_max
-#SBATCH --partition gpu_p
+#SBATCH --qos cpu_normal
+#SBATCH --partition cpu_p
 
-#SBATCH --cpus-per-task 1
-#SBATCH --mem=40G
+#SBATCH --cpus-per-task 2
+#SBATCH --mem=80G
 
 #SBATCH -t 02-00:00:00
-
-
-# #SBATCH --qos cpu_short
-# #SBATCH --partition cpu_p
-
-# #SBATCH --cpus-per-task 1
-# #SBATCH --mem=16G
-
-# #SBATCH -t 00-05:00:00
-
-#SBATCH --nice=10000  # Manual priority. Do not change this.
+#SBATCH --nice=10000
 
 echo $HOME
 source $HOME/.bashrc
 
-# activate the conda enviroment
+# activate the right enviroment
+conda deactivate
+conda deactivate
 conda deactivate
 source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
