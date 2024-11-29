@@ -281,7 +281,7 @@ class DetectionHeadDataset(Dataset):
 
 
         # Files for ground truth bboxes
-        bbox_gt_dir = self.base_dir / 'patched_data' / 'patch_bbox_gt', self.data_split
+        bbox_gt_dir = self.base_dir / 'patched_data' / 'patch_bbox_gt' / self.data_split
 
         bbox_gt_files = []
         for dataset in organoid_dirs:
