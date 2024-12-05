@@ -334,7 +334,10 @@ class DetectionHeadDataset(Dataset):
     def __getitem__(self, idx):
         # Load image
         image_path = self.image_files[idx]
-        image = np.load(image_path)
+        image = torch.load(image_path, map_location='cpu')['features']
+        image = image.squeeze(0)  # .permute(1, 2, 0).cpu().numpy()
+
+        # image = np.load(image_path)
 
         # Load targets
         if idx >= len(self.label_files):
@@ -358,15 +361,15 @@ class DetectionHeadDataset(Dataset):
         #     print('image', image, flush=True)
         #     print('image_path', image_path, flush=True)
             
-        # Remove the first dimension if it exists
-        if image.shape[0] == 1:
-            image = np.squeeze(image, axis=0)
+        # # Remove the first dimension if it exists
+        # if image.shape[0] == 1:
+        #     image = np.squeeze(image, axis=0)
         
-        # Ensure image is of shape (256, 64, 64)
-        if image.shape != (256, 64, 64):
-            image = image.transpose((2, 0, 1))
-            if image.shape != (256, 64, 64):
-                raise ValueError(f"Unexpected image shape: {image.shape}, expected (256, 64, 64)")
+        # # Ensure image is of shape (256, 64, 64)
+        # if image.shape != (256, 64, 64):
+        #     image = image.transpose((2, 0, 1))
+        #     if image.shape != (256, 64, 64):
+        #         raise ValueError(f"Unexpected image shape: {image.shape}, expected (256, 64, 64)")
 
         # Pad targets to ensure they are of shape (num_queries, 4)
         num_boxes = targets.shape[0]
@@ -377,7 +380,7 @@ class DetectionHeadDataset(Dataset):
             padded_targets = targets[:self.num_queries]
 
         # Convert to torch tensors
-        image = torch.tensor(image, dtype=torch.float32)
+        # image = torch.tensor(image, dtype=torch.float32)
         padded_targets = torch.tensor(padded_targets, dtype=torch.float32)
         
 

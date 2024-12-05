@@ -124,6 +124,7 @@ class SAMOS():
         # self.offsets = []
         for psize in patch_size:
             for i, (im_crop, offset_x, offset_y, size) in enumerate(dl.patch_image(image, size=psize)):
+                # print(size)
                 with torch.inference_mode():
                     self.sam_predictor.set_image(im_crop)
                     image_embedding = {
@@ -200,6 +201,85 @@ class SAMOS():
         if predict_masks:
             self.pred_contours = [self.pred_contours[ii] for ii in kept_indices]
             # self.pred_masks = self.pred_masks[kept_indices]
+        self.pred_patch_numbers = self.pred_patch_numbers[kept_indices]
+        self.offsets = self.offsets[kept_indices]
+        self.pred_scores = self.pred_scores[kept_indices]
+
+        # Threshold boxes
+        masks, boxes, scores = self.set_threshold(self.default_thres, predict_masks=predict_masks)
+
+        return masks, boxes, scores
+    
+    
+    def forward_patches(self, patches, offsets, predict_masks=True):
+        self.reset_image()
+        H, W = patches.shape[0], patches.shape[1]
+
+        for i, (im_crop, offset) in enumerate(zip(patches, offsets)):
+            offset_x = offset[0]
+            offset_y = offset[1]
+            size = max(H, W)
+            with torch.inference_mode():
+                self.sam_predictor.set_image(im_crop)
+                image_embedding = {
+                    'original_size': self.sam_predictor.original_size,
+                    'input_size': self.sam_predictor.input_size,
+                    'features': self.sam_predictor.features,
+                    'is_image_set': True,
+                }
+                self.image_embeddings.append(image_embedding)
+                pred_scores_patch, pred_boxes_patch = self.predict_boxes(image_embedding)
+
+                if predict_masks:
+                    self.pred_contours.extend(
+                        self.predict_masks(pred_boxes_patch, offset_x=offset_x, offset_y=offset_y)
+                    )
+            pred_scores_patch = pred_scores_patch.cpu().numpy()
+            pred_boxes_patch = pred_boxes_patch.cpu().numpy()
+            pred_boxes_patch = bxn.cxcywh_to_xyxy(pred_boxes_patch) * size + np.array([[offset_y, offset_x, offset_y, offset_x]])
+            self.pred_boxes.append(pred_boxes_patch)
+
+            self.pred_scores.append(pred_scores_patch)
+
+            self.pred_patch_numbers.append(np.ones(pred_scores_patch.shape, dtype=int) * i)
+            self.offsets.append(np.ones(pred_boxes_patch.shape, dtype=int) * np.array([[offset_y, offset_x, offset_y + H, offset_x + W]]))
+
+        self.pred_boxes = np.concatenate(self.pred_boxes, axis=0)
+        self.pred_scores = np.concatenate(self.pred_scores, axis=0)
+        self.pred_patch_numbers = np.concatenate(self.pred_patch_numbers, axis=0)
+        self.offsets = np.concatenate(self.offsets, axis=0)
+
+
+        # Postprocessing
+        if predict_masks:
+            keep_masks = [contour.area >= 100 for contour in self.pred_contours]
+                        #   self.pred_masks.sum(axis=(1, 2)) >= 100
+            self.pred_contours = [c for c, keep in zip(self.pred_contours, keep_masks) if keep]
+            self.pred_boxes = self.pred_boxes[keep_masks]
+            # self.pred_masks = self.pred_masks[keep_masks]
+            self.pred_patch_numbers = self.pred_patch_numbers[keep_masks]
+            self.offsets = self.offsets[keep_masks]
+            self.pred_scores = self.pred_scores[keep_masks]
+
+
+        # # Postprocessing aspect ratio
+        # keep_masks = self.pred_masks.sum(axis=(1, 2)) >= 100
+        # self.pred_boxes = self.pred_boxes[keep_masks]
+        # self.pred_masks = self.pred_masks[keep_masks]
+        # self.pred_patch_numbers = self.pred_patch_numbers[keep_masks]
+        # self.offsets = self.offsets[keep_masks]
+        # self.pred_scores = self.pred_scores[keep_masks]
+        
+        
+        # TODO: Remove boxes at patch borders
+
+        kept_indices = pp.non_max_suppression(self.pred_boxes, self.pred_scores, threshold=self.nms_thres)
+        if len(kept_indices) == 0:
+            return [], np.array([], dtype=float).reshape((0, 4)), np.array([], dtype=float).reshape((0,))
+
+        self.pred_boxes = self.pred_boxes[kept_indices]
+        if predict_masks:
+            self.pred_contours = [self.pred_contours[ii] for ii in kept_indices]
         self.pred_patch_numbers = self.pred_patch_numbers[kept_indices]
         self.offsets = self.offsets[kept_indices]
         self.pred_scores = self.pred_scores[kept_indices]

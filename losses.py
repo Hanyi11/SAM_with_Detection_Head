@@ -37,28 +37,28 @@ class SetCriterion(nn.Module):
         assert 'pred_logits' in outputs
         src_logits = outputs['pred_logits']
 
-        print('loss_labels', 'src_logits.shape', src_logits.shape)
+        # print('loss_labels', 'src_logits.shape', src_logits.shape)
 
         idx = self._get_src_permutation_idx(indices)
         
-        print('loss_labels', 'idx', idx)
+        # print('loss_labels', 'idx', idx)
         
-        print('loss_labels', 'targets', targets)
+        # print('loss_labels', 'targets', targets)
 
         # List of true labels for all batches
         target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
         
-        print('loss_labels', 'target_classes_o', target_classes_o)
+        # print('loss_labels', 'target_classes_o', target_classes_o)
 
         target_classes = torch.full(src_logits.shape[:2], self.num_classes,
                                     dtype=torch.int64, device=src_logits.device)
         
-        print('loss_labels', 'target_classes', target_classes)
+        # print('loss_labels', 'target_classes', target_classes)
 
         target_classes[idx] = target_classes_o
         
-        print('loss_labels', 'target_classes after [idx]', target_classes)
-        print('loss_labels', 'src_logits.transpose(1, 2)', src_logits.transpose(1, 2))
+        # print('loss_labels', 'target_classes after [idx]', target_classes)
+        # print('loss_labels', 'src_logits.transpose(1, 2)', src_logits.transpose(1, 2))
 
         loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, self.empty_weight)
         losses = {'loss_ce': loss_ce}
@@ -106,7 +106,7 @@ class SetCriterion(nn.Module):
             batch_idx: torch.Tensor [0, ..., 0, 1, ..., 1, 2, ..., batch_size]
             src_idx: Stacked src indices of the whole batch.
         """
-        print('indices', indices)
+        # print('indices', indices)
         batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
         src_idx = torch.cat([src for (src, _) in indices])
         return batch_idx, src_idx

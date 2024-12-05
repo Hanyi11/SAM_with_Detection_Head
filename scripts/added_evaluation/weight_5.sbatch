@@ -26,5 +26,6 @@ conda deactivate
 source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
 
+# python train.py --use_sampler --encoder_name SAM_large --balance_validation --balance_newdata 0.05 --train_dirs NewData_train --val_dirs NewData_val --batch_size 32 --batches_per_epoch 200 --sub_name test_added_eval --max_epochs 800 --checkpoint_path 'DetectionHead_SAM_large_NeurIPSCellSeg_train_pretraining_stage2_True_32_200-last_epoch=499-val_loss=8.78.ckpt'
 python train.py --use_sampler --encoder_name SAM_large --balance_validation --balance_newdata 0.05 --train_dirs OrganoID_train MultiOrg_train_macros MultiOrg_train_normal OrgaExtractor_train OrgaQuant_train OrgaSegment_train Tellu_train NewData_train --val_dirs OrganoID_val MultiOrg_val_macros MultiOrg_val_normal OrgaExtractor_val OrgaQuant_val OrgaSegment_val Tellu_val NewData_val --batch_size 32 --batches_per_epoch 200 --sub_name added_eval --max_epochs 800 --checkpoint_path 'DetectionHead_SAM_large_NeurIPSCellSeg_train_pretraining_stage2_True_32_200-last_epoch=499-val_loss=8.78.ckpt'
 
