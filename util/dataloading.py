@@ -235,6 +235,7 @@ def patch_image(im, size=512):
         yield im, 0, 0, max(H, W)
         return
 
+    # print(size)
     # # Compute number of patches per side
     # n_patches_x = 1
     # if W > size:
@@ -246,6 +247,7 @@ def patch_image(im, size=512):
     # size_x = int(np.ceil((W + (n_patches_x-1) * 2 * padding) / n_patches_x))
     # size_y = int(np.ceil((H + (n_patches_y-1) * 2 * padding) / n_patches_y))
     # size = max(size_x, size_y)
+    # print(size)
 
     # Compute number of patches per side with updated size
     n_patches_x = 1

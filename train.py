@@ -191,7 +191,7 @@ def train(args) -> None:
 
     # Checkpointing
     checkpoint_callback_last = ModelCheckpoint(
-        save_last=3,
+        save_last=1,
         every_n_epochs=ckpt_frequency,
         dirpath=ckpt_path / logging_name,
         filename=f"{logging_name}-last_{{epoch}}-{{val_loss:.2f}}",
