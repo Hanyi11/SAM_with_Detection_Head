@@ -5,21 +5,25 @@ import rasterio
 from rasterio.features import shapes as rio_shapes
 import shapely
 import json
+from PIL import Image
+from torchvision.models.detection.ssd import SSD300_VGG16_Weights
 from . import dataloading as dl
 from . import postprocessing as pp
 from . import box_ops_numpy as bxn
 
-import detection_head_model as dhm
+# import detection_head_model as dhm
+import SSD_model as ssdm
 sys.path.append('/home/icb/lion.gleiter/projects/organoid_sam/segment-anything/segment-anything')
 from segment_anything import build_sam_vit_l, predictor
 
 # Load SAM and detection head
-class SAMOS():
-    def __init__(self, checkpoint_path, default_thres=0.96):
-        self.detection_head = dhm.DetectionHead.load_from_checkpoint(checkpoint_path=checkpoint_path)
-        self.detection_head.eval()
+class SSDPredictor():
+    def __init__(self, checkpoint_path, default_thres=0.5):
+        self.ssd_model = ssdm.SSD.load_from_checkpoint(checkpoint_path=checkpoint_path)
+        self.ssd_model.eval()
+        self.transforms = SSD300_VGG16_Weights.COCO_V1.transforms()
         sam_model = build_sam_vit_l(checkpoint='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints/sam_vit_l_0b3195.pth')
-        self.sam_predictor = predictor.SamPredictor(sam_model=sam_model.to(device=self.detection_head.device))
+        self.sam_predictor = predictor.SamPredictor(sam_model=sam_model.to(device=self.ssd_model.device))
         self.nms_thres = 0.5
         self.image_embeddings = []
         self.offsets = []
@@ -45,20 +49,28 @@ class SAMOS():
         self.manual_boxes = []
         self.manual_contours = []
 
-    def predict_boxes(self, image_embedding):
-        device = self.detection_head.device
-        image_embedding = image_embedding['features'].to(device)
-        pos_embedding = self.detection_head.position_embedding(image_embedding) # bs x 256 x 64 x 64
+    def predict_boxes(self, image):
+        H, W = image.shape[:2]
+        print('predict_boxes image.shape', image.shape)
+        image = Image.fromarray(image)
+        image = self.transforms(image)
+        image = image.to(self.ssd_model.device)
 
-        # forward
-        outputs = self.detection_head.forward(
-            query_embedding=self.detection_head.query_embed.weight,
-            image_embedding=image_embedding, 
-            pos_embedding=pos_embedding
-        )
-        scores = torch.nn.functional.softmax(outputs['pred_logits'], dim=-1)
-        scores = scores[0, :, 0]
-        boxes = outputs['pred_boxes'][0]
+        with torch.inference_mode():
+            outputs = self.ssd_model.forward([image])
+
+        boxes = outputs['pred_boxes']#.cpu().numpy()
+
+        # [xyxy] in px to [cy cx h w] in [0, 1]
+        boxes = torch.stack((
+            (boxes[:, 1] + boxes[:, 3]) / 2, 
+            (boxes[:, 0] + boxes[:, 2]) / 2,
+            (boxes[:, 3] - boxes[:, 1]), 
+            (boxes[:, 2] - boxes[:, 0]),
+        ), dim=1) / max(H, W)
+
+        scores = outputs['pred_scores']#.cpu().numpy()
+
         return scores, boxes #.cpu().numpy()
 
     def predict_masks(self, boxes, offset_x=0, offset_y=0, image_embedding=None):
@@ -80,6 +92,8 @@ class SAMOS():
             boxes[:, 1] + boxes[:, 3] / 2,
             boxes[:, 0] + boxes[:, 2] / 2
         ), dim=1) * 1024
+
+        print('transformed_boxes.shape', transformed_boxes.shape)
 
         # Forward
         masks, _, _ = self.sam_predictor.predict_torch(
@@ -147,7 +161,7 @@ class SAMOS():
             else:
                 raise RuntimeError(f"patch_idx {patch_idx} does not work with self.image_embeddings of size {len(self.image_embeddings)}")
             
-            pred_scores_patch, pred_boxes_patch = self.predict_boxes(image_embedding)
+            pred_scores_patch, pred_boxes_patch = self.predict_boxes(patch)
 
             if predict_masks:
                 pred_contours = self.predict_masks(pred_boxes_patch, offset_x=offset_x, offset_y=offset_y)

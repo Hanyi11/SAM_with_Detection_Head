@@ -108,91 +108,105 @@ if __name__=='__main__':
 
     thresholds = [0.2, 0.4, 0.6, 0.75, 0.85, 0.9, 0.95, 0.975, 0.99]
 
-    for ds in [
-        dl.OrganoID(split='test'),
-        dl.OrganoID(split='test_C'),
-        dl.OrganoID(split='test_Lung'),
-        dl.OrganoID(split='test_ACC'),
-        dl.OrganoID(split='test_only_mouse'),
-    ]:
-        # ids = {f'{t:4.2f}': [] for t in thresholds}
-        # bboxes_all = {f'{t:4.2f}': [] for t in thresholds}
-        # scores_all = {f'{t:4.2f}': [] for t in thresholds}
-        # labels_all = {f'{t:4.2f}': [] for t in thresholds}
+    # for ds in [
+    #     dl.OrganoID(split='test'),
+    #     dl.OrganoID(split='test_C'),
+    #     dl.OrganoID(split='test_Lung'),
+    #     dl.OrganoID(split='test_ACC'),
+    #     dl.OrganoID(split='test_only_mouse'),
+    # ]:
+    #     # ids = {f'{t:4.2f}': [] for t in thresholds}
+    #     # bboxes_all = {f'{t:4.2f}': [] for t in thresholds}
+    #     # scores_all = {f'{t:4.2f}': [] for t in thresholds}
+    #     # labels_all = {f'{t:4.2f}': [] for t in thresholds}
 
-        pq_data = []
-        for idx in tqdm(range(len(ds))):  # len(ds))):
-            im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
-            im, flatfield = dl.normalize(im)
-            # im = (im / im.max() * 255).astype(np.uint8)
-            # im = np.stack((im, im, im), axis=2)
+    #     pq_data = []
+    #     seg_data = []
+    #     for idx in tqdm(range(len(ds))):  # len(ds))):
+    #         im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
+    #         im, flatfield = dl.normalize(im)
+    #         # im = (im / im.max() * 255).astype(np.uint8)
+    #         # im = np.stack((im, im, im), axis=2)
 
-            H, W = im.shape[:2]
-            patch_size = int(np.ceil(max(H, W) * 7 / 12))
-            print(patch_size)
+    #         H, W = im.shape[:2]
+    #         patch_size = int(np.ceil(max(H, W) * 7 / 12))
+    #         print(patch_size)
 
-            contours, boxes, scores = samos.forward(im, patch_size=patch_size, predict_masks=True, min_diameter=30/1.29)
-            for thres in thresholds:
-                contours, boxes, scores = samos.set_threshold(conf_thres=thres, predict_masks=True)
+    #         contours, boxes, scores = samos.forward(im, patch_size=patch_size, predict_masks=True, min_diameter=30/1.29)
+    #         for thres in thresholds:
+    #             contours, boxes, scores = samos.set_threshold(conf_thres=thres, predict_masks=True)
                 
-                iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
-                tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
-                    pp.compute_metrics_detection_from_iou_matrix(iou_matrix=iou_matrix)
-
-                # print("Threshold", thres)
-                # print("tp, fp, fn, pq, precision, recall, f1_score, mean_iou:", tp, fp, fn, pq, precision, recall, f1_score, mean_iou)
-                pq_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
-
-
-                fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
-                plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
-                plot_boxes(im, boxes, format='yxyx_px', ax=ax, show_image=False, color='red')
-                plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}'
-                plot_dir.mkdir(exist_ok=True)
-                plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_{int(thres*100)}.png', dpi=200)
-                plt.close('all')
-
-                # unique_id = get_unique_id_from_img_path(im_path)
-
-                # boxes = boxes.astype(int)
-                # boxes = np.stack((boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]), axis=1)
-
-                # labels = np.zeros((scores.shape[0],), dtype=int)
-                # boxes = convert_to_dicts(boxes, bboxes=True)
-                # scores = convert_to_dicts(scores)
-                # labels = convert_to_dicts(labels)
+    #             iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
+    #             tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
+    #                 pp.compute_metrics_detection_from_iou_matrix(iou_matrix=iou_matrix)
+    #             pq_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
                 
-                # ids[f'{thres:4.2f}'].append(unique_id)
-                # bboxes_all[f'{thres:4.2f}'].append(boxes)
-                # scores_all[f'{thres:4.2f}'].append(scores)
-                # labels_all[f'{thres:4.2f}'].append(labels)
+    #             iou_matrix = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=pp.convert_mask_to_binary(gt_mask))
+    #             tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
+    #                 pp.compute_metrics_segmentation_from_iou_matrix(iou_matrix=iou_matrix)
+    #             seg_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
 
-        # for t in thresholds:    
-        #     # create a data frame to save predictions
-        #     df = pd.DataFrame(data={'ID': ids[f'{t:4.2f}'], 
-        #                             'Predicted Boxes': bboxes_all[f'{t:4.2f}'], 
-        #                             'Model scores': scores_all[f'{t:4.2f}'], 
-        #                             'Predicted Labels': labels_all[f'{t:4.2f}']})
-        #     df.to_csv(results_dir / f'{model_name}_{str(ds)}_t_{t:4.2f}_submission.csv', index=False)
 
-        pq_data = pd.DataFrame(data=pq_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-        pq_data.to_csv(results_dir / f'{model_name}_test_metrics_{str(ds)}.csv', index=False)
+    #             fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
+    #             plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
+    #             plot_boxes(im, boxes, format='yxyx_px', ax=ax, show_image=False, color='red')
+    #             plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}'
+    #             plot_dir.mkdir(exist_ok=True)
+    #             plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_{int(thres*100)}.png', dpi=200)
+    #             plt.close('all')
 
-        print(pq_data.groupby('thres').mean())
+    #             # unique_id = get_unique_id_from_img_path(im_path)
+
+    #             # boxes = boxes.astype(int)
+    #             # boxes = np.stack((boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]), axis=1)
+
+    #             # labels = np.zeros((scores.shape[0],), dtype=int)
+    #             # boxes = convert_to_dicts(boxes, bboxes=True)
+    #             # scores = convert_to_dicts(scores)
+    #             # labels = convert_to_dicts(labels)
+                
+    #             # ids[f'{thres:4.2f}'].append(unique_id)
+    #             # bboxes_all[f'{thres:4.2f}'].append(boxes)
+    #             # scores_all[f'{thres:4.2f}'].append(scores)
+    #             # labels_all[f'{thres:4.2f}'].append(labels)
+
+    #     # for t in thresholds:    
+    #     #     # create a data frame to save predictions
+    #     #     df = pd.DataFrame(data={'ID': ids[f'{t:4.2f}'], 
+    #     #                             'Predicted Boxes': bboxes_all[f'{t:4.2f}'], 
+    #     #                             'Model scores': scores_all[f'{t:4.2f}'], 
+    #     #                             'Predicted Labels': labels_all[f'{t:4.2f}']})
+    #     #     df.to_csv(results_dir / f'{model_name}_{str(ds)}_t_{t:4.2f}_submission.csv', index=False)
+
+    #     pq_data = pd.DataFrame(data=pq_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
+    #     pq_data.to_csv(results_dir / f'{model_name}_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
+
+    #     seg_data = pd.DataFrame(data=seg_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
+    #     seg_data.to_csv(results_dir / f'{model_name}_segmentation_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
+
+    #     mean_metrics = pq_data.groupby('thres', as_index=False).mean()
+    #     mean_metrics.to_csv(results_dir / f'{model_name}_mean_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
+
+    #     mean_metrics = seg_data.groupby('thres', as_index=False).mean()
+    #     mean_metrics.to_csv(results_dir / f'{model_name}_segmentation_mean_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
+
+    #     print(pq_data.groupby('thres').mean())
 
 
 
     for ds in [
-        dl.OrgaSegment(split='test'),
+        # dl.OrgaSegment(split='test'),
         dl.OrgaQuant(split='test'),
         dl.OrgaExtractor(split='test'),
         dl.Tellu(split='test'),
+        dl.NewData(split='test'),
     ]:
         # Fixed patch size of 512
         patch_size = 512
         print(patch_size)
 
         pq_data = []
+        seg_data = []
         for idx in tqdm(range(len(ds))):  # len(ds))):
             im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
             im, flatfield = dl.normalize(im)
@@ -208,10 +222,13 @@ if __name__=='__main__':
                 iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
                 tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
                     pp.compute_metrics_detection_from_iou_matrix(iou_matrix=iou_matrix)
-
-                # print("Threshold", thres)
-                # print("tp, fp, fn, pq, precision, recall, f1_score, mean_iou:", tp, fp, fn, pq, precision, recall, f1_score, mean_iou)
                 pq_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
+                
+                if gt_mask is not None:
+                    iou_matrix = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=pp.convert_mask_to_binary(gt_mask))
+                    tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
+                        pp.compute_metrics_segmentation_from_iou_matrix(iou_matrix=iou_matrix)
+                    seg_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
 
 
                 fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
@@ -223,7 +240,17 @@ if __name__=='__main__':
                 plt.close('all')
 
         pq_data = pd.DataFrame(data=pq_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-        pq_data.to_csv(results_dir / f'{model_name}_test_metrics_{str(ds)}_ps_{patch_size}.csv', index=False)
+        pq_data.to_csv(results_dir / f'{model_name}_test_metrics_{str(ds)}_{ds.split}_ps_{patch_size}.csv', index=False)
+        
+        mean_metrics = pq_data.groupby('thres', as_index=False).mean()
+        mean_metrics.to_csv(results_dir / f'{model_name}_mean_test_metrics_{str(ds)}_{ds.split}_ps_{patch_size}.csv', index=False)
+
+        if len(seg_data) > 0:
+            seg_data = pd.DataFrame(data=seg_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
+            seg_data.to_csv(results_dir / f'{model_name}_segmentation_test_metrics_{str(ds)}_{ds.split}_ps_{patch_size}.csv', index=False)
+
+            mean_metrics = seg_data.groupby('thres', as_index=False).mean()
+            mean_metrics.to_csv(results_dir / f'{model_name}_segmentation_mean_test_metrics_{str(ds)}_{ds.split}_ps_{patch_size}.csv', index=False)
 
         print(pq_data.groupby('thres').mean())
         

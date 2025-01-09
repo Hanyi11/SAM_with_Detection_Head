@@ -641,10 +641,11 @@ def compute_iou_matrix_segmentation(pred_masks, gt_masks):
 
 def mask_to_contour(mask):
     # Converts a binary mask into a shapely MultiPolygon.
+    mask = mask.astype(np.uint8)
     outlines = []
-    for p, v in rio_shapes(mask, 
-                            mask=mask, 
-                            connectivity=8):
+    for p, v in rio_shapes(mask,
+                           mask=mask,
+                           connectivity=8):
         if v==1:
             outlines.append(shapely.from_geojson(json.dumps(p)))
         else:
@@ -655,11 +656,13 @@ def mask_to_contour(mask):
 def compute_iou_matrix_segmentation_contours(pred_contours, gt_masks):
     num_preds = len(pred_contours)
     num_gts = gt_masks.shape[0]
+    print('gt_masks.shape', gt_masks.shape)
     
     # Create the IoU matrix
     iou_matrix = np.zeros((num_preds, num_gts))
     
     for j, gt_mask in enumerate(gt_masks):
+        print('gt_mask.shape, gt_mask.dtype', gt_mask.shape, gt_mask.dtype)
         gt_contour = mask_to_contour(gt_mask)
         for i, pred_contour in enumerate(pred_contours):
             intersection = shapely.intersection(gt_contour, pred_contour).area

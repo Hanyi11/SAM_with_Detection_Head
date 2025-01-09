@@ -128,7 +128,11 @@ class SSD(pl.LightningModule):
         # pos_embedding = self.position_embedding(image_embedding) # bs x 256 x 64 x 64
 
         # forward
-        loss_dict = self.model(images, targets)
+        try:
+            loss_dict: dict = self.model(images, targets)
+        except Exception as e:
+            print('targets', targets)
+            raise e
         # outputs = self.forward(query_embedding=self.query_embed.weight.to(device), image_embedding=image_embedding, pos_embedding=pos_embedding)
         
         # # Process targets: filter out all-zero entries and create dictionary
@@ -146,6 +150,7 @@ class SSD(pl.LightningModule):
         # loss_dict = self.criterion(outputs, processed_targets)
         # weight_dict = self.criterion.weight_dict
         train_losses = sum(loss_dict[k] for k in loss_dict.keys())
+        loss_dict.update({'loss': train_losses})
 
         # IoU
         # giou = self.criterion.compute_giou(outputs, processed_targets)
@@ -153,21 +158,28 @@ class SSD(pl.LightningModule):
         # Move IoU to CPU for logging purposes
         # giou = giou.detach().cpu()
 
-        self.training_step_outputs.append({'loss': train_losses})
+
+        self.training_step_outputs.append(loss_dict)
 
         return {'loss': train_losses}
 
     def on_train_epoch_end(self):
         avg_train_loss = torch.stack([x['loss'] for x in self.training_step_outputs]).mean()
+        avg_train_bbox_regression = torch.stack([x['bbox_regression'] for x in self.training_step_outputs]).mean()
+        avg_train_classification = torch.stack([x['classification'] for x in self.training_step_outputs]).mean()
         # avg_train_iou = torch.stack([x['giou'] for x in self.training_step_outputs]).mean()
 
         self.log('train_loss', avg_train_loss)
+        self.log('train_loss_bbox_regression', avg_train_bbox_regression)
+        self.log('train_loss_classification', avg_train_classification)
         # self.log('train_giou', avg_train_iou)
 
         self.training_step_outputs.clear()
 
     def validation_step(self, batch, batch_idx):
+        print('batch_idx', batch_idx)
         images, targets = batch
+        print('len(images), len(targets)', len(images), len(targets))
         device = images[0].device
         # pos_embedding = self.position_embedding(image_embedding) # bs x 256 x 64 x 64
         # outputs = self.forward(query_embedding=self.query_embed.weight.to(device), image_embedding=image_embedding, pos_embedding=pos_embedding)
@@ -177,6 +189,7 @@ class SSD(pl.LightningModule):
         self.model.training = True
         with torch.inference_mode():
             loss_dict = self.model(images, targets)
+            print('loss_dict', loss_dict)
         self.model.training = training
 
         # # Process targets: filter out all-zero entries and create dictionary
@@ -194,6 +207,7 @@ class SSD(pl.LightningModule):
         # loss_dict = self.criterion(outputs, processed_targets)
         # weight_dict = self.criterion.weight_dict
         val_losses = sum(loss_dict[k] for k in loss_dict.keys())
+        loss_dict.update({'loss': val_losses})
 
         # IoU
         # giou = self.criterion.compute_giou(outputs, processed_targets)
@@ -201,15 +215,19 @@ class SSD(pl.LightningModule):
         # Move IoU to CPU for logging purposes
         # giou = giou.detach().cpu()
 
-        self.val_step_outputs.append({'loss': val_losses})
+        self.val_step_outputs.append(loss_dict)
 
         return {'val_loss': val_losses}
 
     def on_validation_epoch_end(self):
         avg_val_loss = torch.stack([x['loss'] for x in self.val_step_outputs]).mean()
+        avg_val_bbox_regression = torch.stack([x['bbox_regression'] for x in self.val_step_outputs]).mean()
+        avg_val_classification = torch.stack([x['classification'] for x in self.val_step_outputs]).mean()
         # avg_val_iou = torch.stack([x['giou'] for x in self.val_step_outputs]).mean()
 
         self.log('val_loss', avg_val_loss)
+        self.log('val_loss_bbox_regression', avg_val_bbox_regression)
+        self.log('val_loss_classification', avg_val_classification)
         # self.log('val_giou', avg_val_iou)
 
         self.val_step_outputs.clear()

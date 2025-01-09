@@ -8,8 +8,8 @@
 #SBATCH --qos gpu_normal
 #SBATCH --partition gpu_p
 
-#SBATCH --cpus-per-task 15
-#SBATCH --mem=80G
+#SBATCH --cpus-per-task 20
+#SBATCH --mem=100G
 #SBATCH --exclude=supergpu17
 
 #SBATCH --gres=gpu:1
@@ -26,5 +26,6 @@ conda deactivate
 source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
 
-python train_SSD.py --use_sampler --balance_validation --balance_newdata 0.05 --train_dirs OrganoID_train MultiOrg_train_macros MultiOrg_train_normal OrgaExtractor_train OrgaQuant_train OrgaSegment_train Tellu_train NewData_train --val_dirs OrganoID_val MultiOrg_val_macros MultiOrg_val_normal OrgaExtractor_val OrgaQuant_val OrgaSegment_val Tellu_val NewData_val --batch_size 32 --batches_per_epoch 200 --sub_name full_data --max_epochs 800
+# python train_SSD.py --use_sampler --balance_validation --balance_newdata 0.05 --train_dirs OrganoID_train MultiOrg_train_macros MultiOrg_train_normal OrgaExtractor_train OrgaQuant_train OrgaSegment_train Tellu_train NewData_train --val_dirs OrganoID_val MultiOrg_val_macros MultiOrg_val_normal OrgaExtractor_val OrgaQuant_val OrgaSegment_val Tellu_val NewData_val --batch_size 32 --batches_per_epoch 200 --sub_name full_data --max_epochs 800
+python train_SSD.py --use_sampler --balance_validation --balance_newdata 0.05 --train_dirs OrganoID_train --val_dirs OrganoID_val --batch_size 32 --batches_per_epoch 10 --sub_name debug_loss --max_epochs 800
 

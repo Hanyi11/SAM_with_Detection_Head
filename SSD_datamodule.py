@@ -12,6 +12,7 @@ from tqdm import tqdm
 import multiprocessing as mp
 from PIL import Image
 from torchvision.models.detection.ssd import SSD300_VGG16_Weights
+from monai import transforms as tfs
 
 from util import box_ops_numpy
 
@@ -251,6 +252,120 @@ def collate_fn(batch):
     return images, targets
 
 
+class RandRotate90(tfs.RandomizableTransform):
+    def __init__(self, prob = 1, do_transform = True, axes=(-2, -1)):
+        super().__init__(prob, do_transform)
+        self.axes = axes
+
+    def randomize(self):
+        super().randomize(None)
+        self.k = self.R.choice(a=4)
+
+    def __call__(self, data):
+        self.randomize()
+
+        img, boxes = data['img'], data['boxes']
+        H = img.shape[self.axes[0]]
+        W = img.shape[self.axes[1]]
+
+        if self._do_transform:
+            img_rotate = tfs.Rotate90(k=self.k, spatial_axes=self.axes)
+            img = img_rotate(img)
+            # img = tfs.spatial.functional.rotate90(img, axes=self.axes, k=self.k)
+            boxes = self._rotate90k(boxes, H, W, k=self.k)
+        return {'img': img, 'boxes': boxes}
+    
+    def _rotate90k(self, boxes, H, W, k):
+        """Rotates k-times 90 degrees counterclockwise."""
+        for _ in range(k):
+            boxes = self._rotate90(boxes, H, W)
+
+            # Swap H and W
+            W_new, H_new = H, W
+            H, W = H_new, W_new 
+
+        return boxes
+    
+    def _rotate90(self, boxes, H, W):
+        """Rotates 90 degrees counterclockwise.
+        
+        'boxes' must be of shape [N, 4] with coords in [x, y, x, y] in px, 
+        where x corresponds to axis[1] and y to axis[0].
+        """
+        xmin = boxes[:, 1]
+        xmax = boxes[:, 3]
+
+        ymin = W - boxes[:, 2]
+        ymax = W - boxes[:, 0]
+
+        return np.stack((xmin, ymin, xmax, ymax), axis=1)
+
+
+class RandFlip(tfs.RandomizableTransform):
+    def __init__(self, prob = 1, do_transform = True, x_axis=-1):
+        super().__init__(prob, do_transform)
+        self.x_axis = x_axis
+        self.img_flip = tfs.Flip(spatial_axis=self.x_axis)
+
+    def randomize(self):
+        super().randomize(None)
+        self.flip = self.R.choice(a=[True, False])
+
+    def __call__(self, data):
+        self.randomize()
+
+        img, boxes = data['img'], data['boxes']
+        W = img.shape[self.x_axis]
+
+        if self._do_transform:
+            if self.flip:
+                img = self.img_flip(img)
+                # img = tfs.spatial.functional.flip(img, sp_axes=self.x_axis)
+                boxes = self._flip(boxes, W)
+        return {'img': img, 'boxes': boxes}
+    
+    def _flip(self, boxes, W):
+        """Flips boxes along x axis.
+        
+        'boxes' must be of shape [N, 4] with coords in [x, y, x, y] in px.
+        """
+        xmin = W - boxes[:, 2]
+        xmax = W - boxes[:, 0]
+
+        ymin = boxes[:, 1]
+        ymax = boxes[:, 3]
+
+        return np.stack((xmin, ymin, xmax, ymax), axis=1)
+
+
+class Augmentation():
+    def __init__(self):
+        self.image_augmentation = tfs.OneOf(
+            (
+                tfs.Identity(),
+                tfs.Compose((
+                    tfs.RandGaussianSmooth(prob=0.8),
+                    tfs.RandAdjustContrast(prob=0.1),
+                    tfs.RandGaussianNoise(prob=0.1),
+                ))
+            ),
+            weights=(0.5, 0.5)
+        )
+        self.img_label_augmentation = tfs.Compose((
+            RandRotate90(),
+            RandFlip(),
+        ))
+
+    def __call__(self, img: torch.Tensor, boxes: torch.Tensor):
+        # boxes are [x, y, x, y] in px
+        img = self.image_augmentation(img)
+
+        output = self.img_label_augmentation({'img': img, 'boxes': boxes})
+        img, boxes = output['img'], output['boxes']
+
+        return img, boxes
+
+
 class SSDDataset(Dataset):
     def __init__(self, 
                  data_split_dirs: List[str],
@@ -258,7 +373,8 @@ class SSDDataset(Dataset):
                  encoder_name: Literal["SAM_base", "MedSAM", "CellSAM", 
                                        "SAM_large", "MicroSAM_huge", "SAM2_large"] = "SAM_base",
                  num_queries: int = 300, 
-                 base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/"):
+                 base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/",
+                 augmentation: bool = True):
         super().__init__()
         
         self.data_split_dirs = data_split_dirs
@@ -267,6 +383,11 @@ class SSDDataset(Dataset):
         self.data_split = data_split
         self.encoder_name = encoder_name
         self.transforms = SSD300_VGG16_Weights.COCO_V1.transforms()
+        if augmentation:
+            self.augmentation = Augmentation()
+        else:
+            self.augmentation = None
+
 
         # Gets sorted paths of image embeddings
         open_image_dirs = [d for d in data_split_dirs if d.startswith('open_images_v4_5/original_data')]
@@ -368,10 +489,18 @@ class SSDDataset(Dataset):
             label_path = self.label_files[idx]
             targets = np.load(label_path)
 
+        # Filter degenerate boxes
+        targets = targets[
+            (targets[:, 2] > 0.01) & (targets[:, 3] > 0.01)
+        ]
         
         # Convert cycxhw to xyxy
         targets = box_ops_numpy.cxcywh_to_xyxy(targets) * max(H, W)
         targets = np.stack((targets[:, 1], targets[:, 0], targets[:, 3], targets[:, 2]), axis=1)
+
+        # Augmentation (targets are [x, y, x, y] in px)
+        if self.augmentation is not None:
+            image, targets = self.augmentation(image, targets)
 
         # Pad targets to ensure they are of shape (num_queries, 4)
         # num_boxes = targets.shape[0]
@@ -440,18 +569,21 @@ class DataModule(pl.LightningDataModule):
             self.train_dataset = SSDDataset(data_split_dirs=self.train_dir_names, 
                                             data_split="train", 
                                             encoder_name=self.encoder_name, 
-                                            num_queries=self.num_queries)
+                                            num_queries=self.num_queries,
+                                            augmentation=True)
             
             self.val_dataset = SSDDataset(data_split_dirs=self.val_dir_names,
                                           data_split="val", 
                                           encoder_name=self.encoder_name, 
-                                          num_queries=self.num_queries)
+                                          num_queries=self.num_queries,
+                                          augmentation=False)
         
         if stage == 'validate' or stage is None:
             self.val_dataset = SSDDataset(data_split_dirs=self.val_dir_names, 
                                           data_split="val", 
                                           encoder_name=self.encoder_name, 
-                                          num_queries=self.num_queries)
+                                          num_queries=self.num_queries,
+                                          augmentation=False)
 
 
 

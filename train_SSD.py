@@ -90,7 +90,7 @@ def train(args) -> None:
 
 
     # Configure model checkpointing
-    ckpt_frequency = 50
+    ckpt_frequency = 25
 
     ckpt_path = Path("/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD")
     ckpt_path.mkdir(exist_ok=True)
