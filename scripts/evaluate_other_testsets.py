@@ -23,6 +23,7 @@ from util.box_ops_numpy import mask_to_boxes, cxcywh_to_xyxy, xyxy_to_cxcywh, pl
 from util import dataloading as dl
 from util import postprocessing as pp
 from util.samos import SAMOS
+from util.ssd import SSDPredictor
 
 base_datadir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/original_data/')
 results_dir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/results')
@@ -103,99 +104,102 @@ if __name__=='__main__':
     # model_name = 'retrained_last'
     # samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-last_epoch=799-val_loss=4.93.ckpt')
     
-    model_name = 'retrained_best'
-    samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-best_epoch=649-val_loss=4.83.ckpt')
+    # model_name = 'retrained_best'
+    # samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-best_epoch=649-val_loss=4.83.ckpt')
+    
+    model_name = 'SSD_full_best'
+    samos = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_full_data_09012025_True_32_200/SSD_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_full_data_09012025_True_32_200-best_epoch=274-val_loss=2.81.ckpt')
 
-    thresholds = [0.2, 0.4, 0.6, 0.75, 0.85, 0.9, 0.95, 0.975, 0.99]
+    thresholds = [0.2, 0.4, 0.5, 0.6, 0.75, 0.85, 0.9, 0.95, 0.96, 0.975, 0.99]
 
-    # for ds in [
-    #     dl.OrganoID(split='test'),
-    #     dl.OrganoID(split='test_C'),
-    #     dl.OrganoID(split='test_Lung'),
-    #     dl.OrganoID(split='test_ACC'),
-    #     dl.OrganoID(split='test_only_mouse'),
-    # ]:
-    #     # ids = {f'{t:4.2f}': [] for t in thresholds}
-    #     # bboxes_all = {f'{t:4.2f}': [] for t in thresholds}
-    #     # scores_all = {f'{t:4.2f}': [] for t in thresholds}
-    #     # labels_all = {f'{t:4.2f}': [] for t in thresholds}
+    for ds in [
+        dl.OrganoID(split='test'),
+        dl.OrganoID(split='test_C'),
+        dl.OrganoID(split='test_Lung'),
+        dl.OrganoID(split='test_ACC'),
+        dl.OrganoID(split='test_only_mouse'),
+    ]:
+        # ids = {f'{t:4.2f}': [] for t in thresholds}
+        # bboxes_all = {f'{t:4.2f}': [] for t in thresholds}
+        # scores_all = {f'{t:4.2f}': [] for t in thresholds}
+        # labels_all = {f'{t:4.2f}': [] for t in thresholds}
 
-    #     pq_data = []
-    #     seg_data = []
-    #     for idx in tqdm(range(len(ds))):  # len(ds))):
-    #         im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
-    #         im, flatfield = dl.normalize(im)
-    #         # im = (im / im.max() * 255).astype(np.uint8)
-    #         # im = np.stack((im, im, im), axis=2)
+        pq_data = []
+        seg_data = []
+        for idx in tqdm(range(len(ds))):  # len(ds))):
+            im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
+            im, flatfield = dl.normalize(im)
+            # im = (im / im.max() * 255).astype(np.uint8)
+            # im = np.stack((im, im, im), axis=2)
 
-    #         H, W = im.shape[:2]
-    #         patch_size = int(np.ceil(max(H, W) * 7 / 12))
-    #         print(patch_size)
+            H, W = im.shape[:2]
+            patch_size = int(np.ceil(max(H, W) * 7 / 12))
+            print(patch_size)
 
-    #         contours, boxes, scores = samos.forward(im, patch_size=patch_size, predict_masks=True, min_diameter=30/1.29)
-    #         for thres in thresholds:
-    #             contours, boxes, scores = samos.set_threshold(conf_thres=thres, predict_masks=True)
+            contours, boxes, scores = samos.forward(im, patch_size=patch_size, predict_masks=True, min_diameter=30/1.29)
+            for thres in thresholds:
+                contours, boxes, scores = samos.set_threshold(conf_thres=thres, predict_masks=True)
                 
-    #             iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
-    #             tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
-    #                 pp.compute_metrics_detection_from_iou_matrix(iou_matrix=iou_matrix)
-    #             pq_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
+                iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
+                tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
+                    pp.compute_metrics_detection_from_iou_matrix(iou_matrix=iou_matrix)
+                pq_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
                 
-    #             iou_matrix = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=pp.convert_mask_to_binary(gt_mask))
-    #             tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
-    #                 pp.compute_metrics_segmentation_from_iou_matrix(iou_matrix=iou_matrix)
-    #             seg_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
+                iou_matrix = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=pp.convert_mask_to_binary(gt_mask))
+                tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
+                    pp.compute_metrics_segmentation_from_iou_matrix(iou_matrix=iou_matrix)
+                seg_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
 
 
-    #             fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
-    #             plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
-    #             plot_boxes(im, boxes, format='yxyx_px', ax=ax, show_image=False, color='red')
-    #             plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}'
-    #             plot_dir.mkdir(exist_ok=True)
-    #             plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_{int(thres*100)}.png', dpi=200)
-    #             plt.close('all')
+                fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
+                plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
+                plot_boxes(im, boxes, format='yxyx_px', ax=ax, show_image=False, color='red')
+                plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}'
+                plot_dir.mkdir(exist_ok=True)
+                plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_{int(thres*100)}.png', dpi=200)
+                plt.close('all')
 
-    #             # unique_id = get_unique_id_from_img_path(im_path)
+                # unique_id = get_unique_id_from_img_path(im_path)
 
-    #             # boxes = boxes.astype(int)
-    #             # boxes = np.stack((boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]), axis=1)
+                # boxes = boxes.astype(int)
+                # boxes = np.stack((boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]), axis=1)
 
-    #             # labels = np.zeros((scores.shape[0],), dtype=int)
-    #             # boxes = convert_to_dicts(boxes, bboxes=True)
-    #             # scores = convert_to_dicts(scores)
-    #             # labels = convert_to_dicts(labels)
+                # labels = np.zeros((scores.shape[0],), dtype=int)
+                # boxes = convert_to_dicts(boxes, bboxes=True)
+                # scores = convert_to_dicts(scores)
+                # labels = convert_to_dicts(labels)
                 
-    #             # ids[f'{thres:4.2f}'].append(unique_id)
-    #             # bboxes_all[f'{thres:4.2f}'].append(boxes)
-    #             # scores_all[f'{thres:4.2f}'].append(scores)
-    #             # labels_all[f'{thres:4.2f}'].append(labels)
+                # ids[f'{thres:4.2f}'].append(unique_id)
+                # bboxes_all[f'{thres:4.2f}'].append(boxes)
+                # scores_all[f'{thres:4.2f}'].append(scores)
+                # labels_all[f'{thres:4.2f}'].append(labels)
 
-    #     # for t in thresholds:    
-    #     #     # create a data frame to save predictions
-    #     #     df = pd.DataFrame(data={'ID': ids[f'{t:4.2f}'], 
-    #     #                             'Predicted Boxes': bboxes_all[f'{t:4.2f}'], 
-    #     #                             'Model scores': scores_all[f'{t:4.2f}'], 
-    #     #                             'Predicted Labels': labels_all[f'{t:4.2f}']})
-    #     #     df.to_csv(results_dir / f'{model_name}_{str(ds)}_t_{t:4.2f}_submission.csv', index=False)
+        # for t in thresholds:    
+        #     # create a data frame to save predictions
+        #     df = pd.DataFrame(data={'ID': ids[f'{t:4.2f}'], 
+        #                             'Predicted Boxes': bboxes_all[f'{t:4.2f}'], 
+        #                             'Model scores': scores_all[f'{t:4.2f}'], 
+        #                             'Predicted Labels': labels_all[f'{t:4.2f}']})
+        #     df.to_csv(results_dir / f'{model_name}_{str(ds)}_t_{t:4.2f}_submission.csv', index=False)
 
-    #     pq_data = pd.DataFrame(data=pq_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-    #     pq_data.to_csv(results_dir / f'{model_name}_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
+        pq_data = pd.DataFrame(data=pq_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
+        pq_data.to_csv(results_dir / f'{model_name}_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
-    #     seg_data = pd.DataFrame(data=seg_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-    #     seg_data.to_csv(results_dir / f'{model_name}_segmentation_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
+        seg_data = pd.DataFrame(data=seg_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
+        seg_data.to_csv(results_dir / f'{model_name}_segmentation_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
-    #     mean_metrics = pq_data.groupby('thres', as_index=False).mean()
-    #     mean_metrics.to_csv(results_dir / f'{model_name}_mean_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
+        mean_metrics = pq_data.groupby('thres', as_index=False).mean()
+        mean_metrics.to_csv(results_dir / f'{model_name}_mean_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
-    #     mean_metrics = seg_data.groupby('thres', as_index=False).mean()
-    #     mean_metrics.to_csv(results_dir / f'{model_name}_segmentation_mean_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
+        mean_metrics = seg_data.groupby('thres', as_index=False).mean()
+        mean_metrics.to_csv(results_dir / f'{model_name}_segmentation_mean_test_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
-    #     print(pq_data.groupby('thres').mean())
+        print(pq_data.groupby('thres').mean())
 
 
 
     for ds in [
-        # dl.OrgaSegment(split='test'),
+        dl.OrgaSegment(split='test'),
         dl.OrgaQuant(split='test'),
         dl.OrgaExtractor(split='test'),
         dl.Tellu(split='test'),

@@ -26,5 +26,5 @@ conda deactivate
 source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
 
-python train_SSD.py --use_sampler --balance_validation --balance_newdata 0.05 --train_dirs MultiOrg_train_macros MultiOrg_train_normal --val_dirs MultiOrg_val_macros MultiOrg_val_normal --batch_size 32 --batches_per_epoch 200 --sub_name multiorg_data --max_epochs 800
+python train_SSD.py --use_sampler --balance_validation --balance_newdata 0.05 --train_dirs MultiOrg_train_macros MultiOrg_train_normal --val_dirs MultiOrg_val_macros MultiOrg_val_normal --batch_size 32 --batches_per_epoch 200 --sub_name multiorg_data_09012025 --max_epochs 800
 

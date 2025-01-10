@@ -1,25 +1,25 @@
-import io
+# import io
 import numpy as np
-import cv2
+# import cv2
 import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from copy import deepcopy
-import skimage
-from skimage.io import imread
-import scipy
-import basicpy
-import tifffile
+# import matplotlib.patches as patches
+# from copy import deepcopy
+# import skimage
+# from skimage.io import imread
+# import scipy
+# import basicpy
+# import tifffile
 from tqdm import tqdm
 # from descartes import PolygonPatch
 import geopandas as gpd
-import basicpy
+# import basicpy
 
 import sys
 sys.path.append('/home/icb/lion.gleiter/projects/organoid_sam/SAM_with_Detection_Head')
 
-from util.box_ops_numpy import mask_to_boxes, cxcywh_to_xyxy, xyxy_to_cxcywh, plot_boxes
+from util.box_ops_numpy import cxcywh_to_xyxy, plot_boxes
 from util import dataloading as dl
 from util import postprocessing as pp
 from util.samos import SAMOS
@@ -107,21 +107,18 @@ if __name__=='__main__':
     # model_name = 'retrained_best'
     # samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-best_epoch=649-val_loss=4.83.ckpt')
     
-    model_name = 'SSD_multiorg_last'
-    samos = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_full_data_True_32_200/SSD_MultiOrg_train_macros_MultiOrg_train_normal_full_data_True_32_200-last_epoch=799-val_loss=17.95.ckpt')
+    # model_name = 'SSD_multiorg_last'
+    # samos = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_data_09012025_True_32_200/')
 
-    # model_name = 'SSD_multiorg_best'
-    # samos = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_full_data_True_32_200/SSD_MultiOrg_train_macros_MultiOrg_train_normal_full_data_True_32_200-best_epoch=49-val_loss=3.79.ckpt')
+    model_name = 'SSD_multiorg_best'
+    samos = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_data_09012025_True_32_200/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_data_09012025_True_32_200-best_epoch=174-val_loss=3.30.ckpt')
 
     for patch_size in [(350, 1024),
                     #    (1024,),
-                    # #    (512,),
+                    #    (512,),
                     #    (512, 2048)
                        ]:
-        thresholds = [
-            #0.2, 0.4, 0.6, 0.75, 0.85, 
-            0.9, 0.95, 0.975
-        ]
+        thresholds = [0.3, 0.5, 0.75, 0.85, 0.9, 0.95]
 
         # multiorg_submission = {f'{t:4.2f}': [] for t in thresholds}
         ids = {f'{t:4.2f}': [] for t in thresholds}
@@ -141,8 +138,6 @@ if __name__=='__main__':
                 im = np.stack((im, im, im), axis=2)
 
                 H, W = im.shape[:2]
-                # patch_size = (512, 2048)
-                # print(patch_size)
 
                 contours, boxes, scores = samos.forward(im, patch_size=patch_size, predict_masks=True, min_diameter=30/1.29)
                 for thres in thresholds:
@@ -151,9 +146,6 @@ if __name__=='__main__':
                     iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
                     tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
                         pp.compute_metrics_detection_from_iou_matrix(iou_matrix=iou_matrix)
-
-                    # print("Threshold", thres)
-                    # print("tp, fp, fn, pq, precision, recall, f1_score, mean_iou:", tp, fp, fn, pq, precision, recall, f1_score, mean_iou)
                     pq_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
 
 
@@ -189,7 +181,10 @@ if __name__=='__main__':
             df.to_csv(results_dir / f'{model_name}_{str(ds)}_ps_{patch_size}_t_{t:4.2f}_submission.csv', index=False)
 
         pq_data = pd.DataFrame(data=pq_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-        pq_data.to_csv(results_dir / f'{model_name}_test_metrics_{str(ds)}_ps_{patch_size}.csv', index=False)
+        pq_data.to_csv(results_dir / f'{model_name}_test_metrics_MultiOrg_ps_{patch_size}.csv', index=False)
+        
+        mean_metrics = pq_data.groupby('thres', as_index=False).mean()
+        mean_metrics.to_csv(results_dir / f'{model_name}_mean_test_metrics_MultiOrg_ps_{patch_size}.csv', index=False)
 
         print(pq_data.groupby('thres').mean())
         
