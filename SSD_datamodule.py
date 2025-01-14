@@ -373,8 +373,11 @@ class SSDDataset(Dataset):
                  encoder_name: Literal["SAM_base", "MedSAM", "CellSAM", 
                                        "SAM_large", "MicroSAM_huge", "SAM2_large"] = "SAM_base",
                  num_queries: int = 300, 
-                 base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/",
-                 augmentation: bool = True):
+                 base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data",
+                #  base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale",
+                 augmentation: bool = True,
+                 min_overlap: float = 0.3, # 0.9,
+                 min_box_side: float = 0.05):
         super().__init__()
         
         self.data_split_dirs = data_split_dirs
@@ -382,6 +385,8 @@ class SSDDataset(Dataset):
         self.num_queries = num_queries
         self.data_split = data_split
         self.encoder_name = encoder_name
+        self.min_overlap = min_overlap
+        self.min_box_side = min_box_side
         self.transforms = SSD300_VGG16_Weights.COCO_V1.transforms()
         if augmentation:
             self.augmentation = Augmentation()
@@ -396,7 +401,7 @@ class SSDDataset(Dataset):
 
 
         # Files for image crops
-        embed_dir = self.base_dir / 'patched_data' / 'patch_images' / self.data_split
+        embed_dir = self.base_dir / 'patch_images' / self.data_split
 
         embed_files = []
         for dataset in organoid_dirs:
@@ -412,7 +417,7 @@ class SSDDataset(Dataset):
 
 
         # Files for ground truth bboxes
-        bbox_gt_dir = self.base_dir / 'patched_data' / 'patch_bbox_gt' / self.data_split
+        bbox_gt_dir = self.base_dir / 'patch_bbox_gt' / self.data_split
 
         bbox_gt_files = []
         for dataset in organoid_dirs:
@@ -489,9 +494,16 @@ class SSDDataset(Dataset):
             label_path = self.label_files[idx]
             targets = np.load(label_path)
 
+            # Filter boxes with low overlap with the current patch
+            overlap_path = label_path.with_stem(f'{label_path.stem}_overlap')
+            if overlap_path.exists():
+                overlap = np.load(overlap_path)
+                targets = targets[overlap > self.min_overlap]
+
         # Filter degenerate boxes
         targets = targets[
-            (targets[:, 2] > 0.01) & (targets[:, 3] > 0.01)
+            (targets[:, 2] > self.min_box_side) & 
+            (targets[:, 3] > self.min_box_side)
         ]
         
         # Convert cycxhw to xyxy

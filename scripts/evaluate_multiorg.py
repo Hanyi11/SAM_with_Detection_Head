@@ -104,21 +104,26 @@ if __name__=='__main__':
     # model_name = 'retrained_last'
     # samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-last_epoch=799-val_loss=4.93.ckpt')
     
-    # model_name = 'retrained_best'
-    # samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-best_epoch=649-val_loss=4.83.ckpt')
+    model_name = 'retrained_best'
+    samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-best_epoch=649-val_loss=4.83.ckpt')
     
     # model_name = 'SSD_multiorg_last'
-    # samos = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_data_09012025_True_32_200/')
+    # samos = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_data_09012025_True_32_200/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_data_09012025_True_32_200-last_epoch=799-val_loss=3.44.ckpt')
 
-    model_name = 'SSD_multiorg_best'
-    samos = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_data_09012025_True_32_200/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_data_09012025_True_32_200-best_epoch=174-val_loss=3.30.ckpt')
+    # model_name = 'SSD_multiorg_best'
+    # samos = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_data_09012025_True_32_200/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_data_09012025_True_32_200-best_epoch=174-val_loss=3.30.ckpt')
 
-    for patch_size in [(350, 1024),
+    for patch_size in [
+        # (512, 2048),
+        (350, 1024),
                     #    (1024,),
                     #    (512,),
                     #    (512, 2048)
                        ]:
-        thresholds = [0.3, 0.5, 0.75, 0.85, 0.9, 0.95]
+        # thresholds = [0.3, 0.4, 0.5, 0.6, 0.7]
+        thresholds = [0.2, 0.3, 0.5, 0.7, 0.85, 0.9, 0.96]
+
+        # thresholds = [0.3, 0.5, 0.75, 0.85, 0.9, 0.95, 0.96]
 
         # multiorg_submission = {f'{t:4.2f}': [] for t in thresholds}
         ids = {f'{t:4.2f}': [] for t in thresholds}

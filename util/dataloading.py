@@ -53,7 +53,7 @@ def is_empty(image):
         return False
     
 
-def normalize(image, smoothness=10):
+def normalize(image, smoothness=10, correct_bg=True):
     # Normalize dtype
     image = image.astype(float)
 
@@ -72,40 +72,45 @@ def normalize(image, smoothness=10):
     image /= np.maximum(np.quantile(image, 0.99, axis=(0,1), keepdims=True), 1e-3)
 
     # Apply background correction
-    basic_successful = True
-    channels = []
-    flatfields = []
-    try:
-        for i in range(image.shape[2]):
-            basic = basicpy.BaSiC(get_darkfield=False, smoothness_flatfield=smoothness)
-            basic.fit(image[None, :, :, i])
-            images_transformed = basic.transform(deepcopy(image[None, :, :, i]))
-            channels.append(images_transformed[0])
-            flatfields.append(basic.flatfield)
-        flatfields = np.stack(flatfields, axis=-1)
-        if np.any(np.isnan(flatfields)):
-            basic_successful = False
-    except RuntimeError:
-        basic_successful = False
-
-    if not basic_successful:
-        # Instead use gaussian blur for background correction
+    if correct_bg:
+        basic_successful = True
         channels = []
         flatfields = []
-        for i in range(image.shape[2]):
-            bg = scipy.ndimage.gaussian_filter(image[:, :, i], sigma = (128, 128))
-            images_transformed = deepcopy(image[:, :, i]) - (bg - bg.mean())
-            channels.append(images_transformed)
-            flatfields.append(bg)
-        flatfields = np.stack(flatfields, axis=-1)
-    image = np.stack(channels, axis=-1)
+        try:
+            for i in range(image.shape[2]):
+                basic = basicpy.BaSiC(get_darkfield=False, smoothness_flatfield=smoothness)
+                basic.fit(image[None, :, :, i])
+                images_transformed = basic.transform(deepcopy(image[None, :, :, i]))
+                channels.append(images_transformed[0])
+                flatfields.append(basic.flatfield)
+            flatfields = np.stack(flatfields, axis=-1)
+            if np.any(np.isnan(flatfields)):
+                basic_successful = False
+        except RuntimeError:
+            basic_successful = False
+
+        if not basic_successful:
+            # Instead use gaussian blur for background correction
+            channels = []
+            flatfields = []
+            for i in range(image.shape[2]):
+                bg = scipy.ndimage.gaussian_filter(image[:, :, i], sigma = (128, 128))
+                images_transformed = deepcopy(image[:, :, i]) - (bg - bg.mean())
+                channels.append(images_transformed)
+                flatfields.append(bg)
+            flatfields = np.stack(flatfields, axis=-1)
+        image = np.stack(channels, axis=-1)
 
     # Normalize quantiles
     lower = np.quantile(image, 0.001, axis=(0,1), keepdims=True)
     upper = np.quantile(image, 0.999, axis=(0,1), keepdims=True)
     image = (image - lower) / np.maximum(upper - lower, 1e-3)
     image = np.clip(image * 255, 0, 255).astype(np.uint8)
-    return image, flatfields
+
+    if correct_bg:
+        return image, flatfields
+    else:
+        return image
 
 
 def filter_boxes_yxyx(boxes, ymin, xmin, ymax, xmax, threshold=10):
@@ -224,6 +229,65 @@ def patch(im, mask, boxes, size=512):
 
             yield im_crop, mask_crop, boxes_crop, overlap, int(im_start_x), int(im_start_y)
 
+
+def patch_fixed(im, mask, boxes, size=512):
+    H, W = im.shape[:2]
+    padding = int(size / 4)
+
+    # Avoid patching if the patch size is almost the image size:
+    if size >= 0.8 * max(H, W):
+        yield im, mask, boxes, np.ones((boxes.shape[0],), dtype=float), 0, 0
+        return
+
+    # Compute number of patches per side with updated size
+    n_patches_x = 1
+    if W > size:
+        n_patches_x += int(np.ceil((W-size) / (size - 2*padding)))
+    n_patches_y = 1
+    if H > size:
+        n_patches_y += int(np.ceil((H-size) / (size - 2*padding)))
+
+    grid_x = np.round(np.linspace(0, W-size, n_patches_x)).astype(int).tolist()
+    grid_y = np.round(np.linspace(0, H-size, n_patches_y)).astype(int).tolist()
+
+    # Iteratively yield patches
+    for im_start_x in grid_x:
+        for im_start_y in grid_y:
+            requires_zero_background = False
+            im_end_x = im_start_x + size
+            im_end_y = im_start_y + size
+
+            if W < im_end_x:
+                requires_zero_background = True
+                im_end_x = W
+            
+            if H < im_end_y:
+                requires_zero_background = True
+                im_end_y = H
+
+            print(size, n_patches_x, n_patches_y, W, H, im_start_x, im_start_y, im_end_x, im_end_y)
+
+            # Crop image and generate grid
+            mask_crop = None
+            if not requires_zero_background:
+                im_crop = im[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
+                if mask is not None:
+                    mask_crop = mask[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
+            else:
+                if im.ndim == 2:
+                    im_crop = np.zeros((size, size), dtype=im.dtype)
+                    im_crop[:int(im_end_y)-int(im_start_y), :int(im_end_x)-int(im_start_x)] = im[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
+                else:
+                    im_crop = np.zeros((size, size, im.shape[2]), dtype=im.dtype)
+                    im_crop[:int(im_end_y)-int(im_start_y), :int(im_end_x)-int(im_start_x), :] = im[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
+                
+                if mask is not None:
+                    mask_crop = np.zeros((size, size), dtype=mask.dtype)
+                    mask_crop[:int(im_end_y)-int(im_start_y), :int(im_end_x)-int(im_start_x)] = mask[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
+
+            boxes_crop, overlap = filter_boxes_yxyx(boxes, ymin=im_start_y, xmin=im_start_x, ymax=im_end_y, xmax=im_end_x, threshold=10)
+
+            yield im_crop, mask_crop, boxes_crop, overlap, int(im_start_x), int(im_start_y)
 
 
 def patch_image(im, size=512):

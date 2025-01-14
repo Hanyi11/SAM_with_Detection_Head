@@ -22,4 +22,5 @@ conda deactivate
 conda deactivate
 source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
-python scripts/extract_patches.py
+# python scripts/extract_patches.py
+python scripts/extract_patches_fixed_size.py
