@@ -24,5 +24,5 @@ conda deactivate
 conda deactivate
 source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
-# python scripts/evaluate_multiorg.py
-python scripts/evaluate_other_testsets.py
+python scripts/evaluate_multiorg.py
+# python scripts/evaluate_other_testsets.py
