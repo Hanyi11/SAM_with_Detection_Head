@@ -24,6 +24,7 @@ from util import dataloading as dl
 from util import postprocessing as pp
 from util.samos import SAMOS
 from util.ssd import SSDPredictor
+from util.FasterRCNN import FasterRCNNPredictor
 
 base_datadir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/original_data/')
 results_dir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/results')
@@ -101,8 +102,8 @@ if __name__=='__main__':
     # model_name = 'SAMOS_last'
     # samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_ablation_dataset_5_pre_OI_NeurIPS_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_ablation_dataset_5_pre_OI_NeurIPS_True_32_200-last_epoch=499-val_loss=5.44.ckpt')
 
-    model_name = 'retrained_last'
-    samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-last_epoch=799-val_loss=4.93.ckpt')
+    # model_name = 'retrained_last'
+    # samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-last_epoch=799-val_loss=4.93.ckpt')
     
     # model_name = 'retrained_best'
     # samos = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-best_epoch=649-val_loss=4.83.ckpt')
@@ -116,9 +117,13 @@ if __name__=='__main__':
     # model_name = 'SSD_multiorg_last_multiscale'
     # samos = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_with_090_overlap_True_32_200/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_with_090_overlap_True_32_200-last_epoch=799-val_loss=3.13.ckpt')
 
+    model_name = 'faster_rcnn_max'
+    samos = FasterRCNNPredictor(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/FasterRCNN/FasterRCNNv2_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_FasterRCNN_16012025_True_16_200/FasterRCNNv2_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_FasterRCNN_16012025_True_16_200-last_epoch=649-val_loss=0.28.ckpt',
+                                version_FasterRCNN='v2')
+
     # thresholds = [0.025, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4]
-    # thresholds = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-    thresholds = [0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.85, 0.9, 0.95, 0.96, 0.975, 0.99]
+    thresholds = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    # thresholds = [0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.85, 0.9, 0.95, 0.96, 0.975, 0.99]
 
     for ds in [
         dl.OrganoID(split='test'),
