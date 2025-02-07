@@ -7,7 +7,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from SSD_datamodule import DataModule
-from SSD_model import SSD
+from FasterRCNN_model import FasterRCNN_model
 import wandb
 import os
 
