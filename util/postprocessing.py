@@ -13,6 +13,7 @@
 import json
 from scipy.optimize import linear_sum_assignment
 from skimage.measure import label
+from sklearn import metrics
 
 # import os
 # from PIL import Image
@@ -622,6 +623,138 @@ def compute_metrics_detection_from_iou_matrix(iou_matrix, iou_threshold=0.5):
     pq = 0.0
     
     return len(tp), len(fp), len(fn), pq, precision, recall, f1_score, mean_iou, dice_coefficient
+
+
+
+def greedy_matching(iou_matrix, iou_threshold):
+    """Matches predictions to ground truth, if the IoU > iou_threshold, greedy from first to last row.
+
+    This assumes the iou_matrix was previously sorted with predictions with highest score first.
+
+    Returns: 
+        is_true_match (N_predictions,): Array with 1 for true matches and 0 for 
+                                        false positive / unmatched predictions.
+    """
+    num_preds = iou_matrix.shape[0]
+    num_gts = iou_matrix.shape[1]
+
+    is_true_match = np.zeros(num_preds, dtype=bool)  # Does the prediction match with a ground truth?
+    
+    for i in range(num_preds):
+        if num_gts == 0:
+            break  # No ground truth available
+
+        if iou_matrix.shape[1] == 0:
+            break  # All ground truths already assigned
+
+        if not np.any(iou_matrix > iou_threshold):
+            break  # No potential true match remaining
+        
+        # Finds best available match
+        best_gt_idx = np.argmax(iou_matrix[0])
+        best_iou = iou_matrix[0, best_gt_idx]
+        
+        # If IoU is high enough, mark as a TP
+        if best_iou >= iou_threshold:
+            is_true_match[i] = True
+            # Removes column with assigned ground truth
+            iou_matrix = np.concatenate([iou_matrix[:, :best_gt_idx], 
+                                         iou_matrix[:, best_gt_idx+1:]], axis=1)
+
+        iou_matrix = iou_matrix[1:]
+    
+    fns = num_gts - np.sum(is_true_match)
+
+    return is_true_match, fns  # True for TP, False for FP
+
+
+def compute_ap(precision, recall):
+    """Compute Average Precision (AP) given precision-recall curve."""
+    recall = np.concatenate(([0.], recall, [1.]))
+    precision = np.concatenate((precision[:1], precision, [0.]))
+    
+    # Ensure precision is non-increasing
+    precision = precision.tolist()
+    for i in range(len(precision)-1, 0, -1):
+        if precision[i] > precision[i-1]:
+            precision[i-1] = precision[i]
+    precision = np.array(precision)
+    
+    # Compute AP by summing area under PR curve
+    ap = np.sum((recall[1:] - recall[:-1]) * precision[1:])
+    return ap
+
+
+def compute_metrics_detection_all(iou_matrix, iou_thres, scores, thresholds):
+    num_preds = iou_matrix.shape[0]
+    num_gts = iou_matrix.shape[1]
+    
+    # Sort detections by confidence score (highest first)
+    sorted_indices = np.argsort(-scores)
+    iou_matrix = iou_matrix[sorted_indices]  # Reorder IoU matrix
+    conf_scores = scores[sorted_indices]  # Reorder confidence scores
+
+    # AP scores
+    ap_scores = []
+    for iou_t in iou_thres:
+        is_true_match, fns = greedy_matching(iou_matrix.copy(), iou_threshold=iou_t)
+        rc = np.cumsum(is_true_match) / max(num_gts, 1)  # Recall
+        pr = np.cumsum(is_true_match) / (np.arange(num_preds) + 1)  # Precision
+        rc = rc[is_true_match]
+        pr = pr[is_true_match]
+        ap = compute_ap(precision=pr, recall=rc)
+        ap_scores.append(ap)
+
+    # F1 score, ... based on confidence thresholds
+
+    pq_scores = []
+    iou_scores = []
+    dice_scores = []
+    f1_scores = []
+    prec_scores = []
+    recall_scores = []
+
+    iou_threshold = 0.5
+    for thres in thresholds:
+        # Removes predictions with confidence below thres.
+        cost_matrix = -iou_matrix.copy()
+        cost_matrix = cost_matrix[conf_scores >= thres]
+
+        # Greedy matching for optimal assignment given a certain threshold
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        matched_ious = -cost_matrix[row_ind, col_ind]
+
+        tp_ious = matched_ious[matched_ious >= iou_threshold]
+
+        # Counts
+        tp = (matched_ious >= iou_threshold).sum()
+        fp = num_preds - tp
+        fn = num_gts - tp
+    
+        # Calculate precision, recall, and F1-score
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    
+        # Calculate mean IoU
+        mean_iou = np.mean(tp_ious) if tp > 0 else 0
+        
+        # # Calculate Dice coefficient
+        dice_coefficient = np.mean(2 * tp_ious / (1 + tp_ious)) if tp > 0 else 0
+
+        # # Calculate PQ
+        # pq = np.sum(tp_ious) / (tp + 0.5 * fp + 0.5 * fn)
+        pq = 0.0
+
+        pq_scores.append(pq)
+        iou_scores.append(mean_iou)
+        dice_scores.append(dice_coefficient)
+        f1_scores.append(f1_score)
+        prec_scores.append(precision)
+        recall_scores.append(recall)
+    
+    return ap_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
+
 
 
 

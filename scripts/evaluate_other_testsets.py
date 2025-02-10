@@ -168,6 +168,8 @@ if __name__=='__main__':
                 plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
                 plot_boxes(im, boxes, format='yxyx_px', ax=ax, show_image=False, color='red')
                 plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}'
+                results_dir.mkdir(exist_ok=True)
+                (results_dir / 'plots').mkdir(exist_ok=True)
                 plot_dir.mkdir(exist_ok=True)
                 plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_{int(thres*100)}.png', dpi=200)
                 plt.close('all')
@@ -252,6 +254,8 @@ if __name__=='__main__':
                 plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
                 plot_boxes(im, boxes, format='yxyx_px', ax=ax, show_image=False, color='red')
                 plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}'
+                results_dir.mkdir(exist_ok=True)
+                (results_dir / 'plots').mkdir(exist_ok=True)
                 plot_dir.mkdir(exist_ok=True)
                 plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_{int(thres*100)}_ps_{patch_size}.png', dpi=200)
                 plt.close('all')

@@ -552,6 +552,8 @@ class OrgaExtractor:
             self.images = train[-val_size:]
         elif split == 'test':
             self.images = test
+        elif split == 'all':
+            self.images = train + test
         else:
             raise ValueError(split)
 
@@ -639,6 +641,8 @@ class NewData:
             self.images = train[-6:-3]
         elif split == 'test':
             self.images = train[-3:]
+        elif split == 'all':
+            self.images = train
         else:
             raise ValueError(split)
 
