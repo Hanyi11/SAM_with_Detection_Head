@@ -222,15 +222,15 @@ if __name__=='__main__':
             if (gt_mask is not None) and evaluate_segmentation:
                 gt_masks = pp.convert_mask_to_binary(gt_mask)
                 iou_matrix_seg = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=gt_masks)
-                mAP_scores, haussdorf_scores, haussdorf_95_scores, masd_scores, assd_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_segmentation_all(
+                mAP_scores, hausdorff_scores, hausdorff_95_scores, masd_scores, assd_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_segmentation_all(
                     iou_matrix_seg, iou_thres, scores, thresholds, gt_masks, contours
                 )
 
                 segmentation_mAP.append(pd.DataFrame({
                     'iou_thres': map(lambda x: f'{x:.3f}', iou_thres), 
                     'AP': mAP_scores, 
-                    'haussdorf_scores': haussdorf_scores, 
-                    'haussdorf_95_scores': haussdorf_95_scores, 
+                    'hausdorff_scores': hausdorff_scores, 
+                    'hausdorff_95_scores': hausdorff_95_scores, 
                     'masd_scores': masd_scores, 
                     'assd_scores': assd_scores,
                 }))

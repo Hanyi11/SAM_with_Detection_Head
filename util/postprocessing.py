@@ -814,9 +814,9 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
 
     # AP scores, segmentation metrics
     ap_scores = []
-    # haussdorf_contour_scores = []
-    haussdorf_scores = []
-    haussdorf_95_scores = []
+    # hausdorff_contour_scores = []
+    hausdorff_scores = []
+    hausdorff_95_scores = []
     masd_scores = []
     assd_scores = []
     for iou_t in iou_thres:
@@ -828,28 +828,28 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
         ap = compute_ap(precision=pr, recall=rc)
         ap_scores.append(ap)
 
-        # haussdorf_contour = []
-        haussdorf = []
-        haussdorf_95 = []
+        # hausdorff_contour = []
+        hausdorff = []
+        hausdorff_95 = []
         masd = []
         assd = []
         for i, j in zip(pred_ids, gt_ids):
             pred_contour = contours[i]
             gt_mask = gt_masks[j]
             gt_contour = mask_to_contour(gt_mask)
-            # haussdorf_contour.append(shapely.hausdorff_distance(pred_contour, gt_contour, densify=0.8))
+            # hausdorff_contour.append(shapely.hausdorff_distance(pred_contour, gt_contour, densify=0.8))
             pred_contour_points = contour_to_points(pred_contour, gt_mask.shape, thickness=1)
             gt_contour_points = contour_to_points(gt_contour, gt_mask.shape, thickness=1)
             distances = scipy.spatial.distance.cdist(pred_contour_points, gt_contour_points, metric='euclidean')
             dist_a_B = np.min(distances, axis=1)
             dist_b_A = np.min(distances, axis=0)
-            haussdorf.append(np.max(np.concatenate([dist_a_B, dist_b_A])))
-            haussdorf_95.append(max(np.quantile(dist_a_B, 0.95), np.quantile(dist_b_A, 0.95)))
+            hausdorff.append(np.max(np.concatenate([dist_a_B, dist_b_A])))
+            hausdorff_95.append(max(np.quantile(dist_a_B, 0.95), np.quantile(dist_b_A, 0.95)))
             masd.append((np.mean(dist_a_B) + np.mean(dist_b_A)) / 2)
             assd.append(np.mean(np.concatenate([dist_a_B, dist_b_A])))
-        # haussdorf_contour_scores.append(np.mean(haussdorf_contour))
-        haussdorf_scores.append(np.mean(haussdorf))
-        haussdorf_95_scores.append(np.mean(haussdorf_95))
+        # hausdorff_contour_scores.append(np.mean(hausdorff_contour))
+        hausdorff_scores.append(np.mean(hausdorff))
+        hausdorff_95_scores.append(np.mean(hausdorff_95))
         masd_scores.append(np.mean(masd))
         assd_scores.append(np.mean(assd))
 
@@ -900,7 +900,7 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
         prec_scores.append(precision)
         recall_scores.append(recall)
     
-    return ap_scores, haussdorf_scores, haussdorf_95_scores, masd_scores, assd_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
+    return ap_scores, hausdorff_scores, hausdorff_95_scores, masd_scores, assd_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
 
 
 
