@@ -1,4 +1,5 @@
 import io
+import json
 import numpy as np
 import cv2
 import pandas as pd
@@ -12,10 +13,13 @@ from sklearn import metrics
 import scipy
 import basicpy
 import tifffile
+import torch
 from tqdm import tqdm
 # from descartes import PolygonPatch
 import geopandas as gpd
 import basicpy
+import torchmetrics.detection
+
 
 import sys
 sys.path.append('/home/icb/lion.gleiter/projects/organoid_sam/SAM_with_Detection_Head')
@@ -120,21 +124,24 @@ if __name__=='__main__':
     # model_name = 'SSD_multiorg_last_multiscale'
     # model = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_with_090_overlap_True_32_200/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_with_090_overlap_True_32_200-last_epoch=799-val_loss=3.13.ckpt')
 
-    model_name = 'FasterRCNN_v2_other_testsets_batch16_last'
+    model_name = 'legacy_FasterRCNN_v2_other_testsets_batch16_last'
     model = FasterRCNNPredictor(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/FasterRCNN/FasterRCNNv2_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_FasterRCNN_16012025_True_16_200/FasterRCNNv2_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_FasterRCNN_16012025_True_16_200-last_epoch=649-val_loss=0.28.ckpt',
                                 version_FasterRCNN='v2')
 
     # Parameters
     thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.975]
-    iou_thres = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+    iou_thres = [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 
-    use_fixed_patch_for_organoID = False  # If true, uses 4 patches per image and adjusts their size correspondingly.
-    fixed_patch_size = (512, 2048)
+    # use_fixed_patch_for_organoID = False  # If true, uses 4 patches per image and adjusts their size correspondingly.
+    fixed_patch_size = (512, 2048)  # If None, uses 4 patches per image and adjusts their size correspondingly.
     evaluate_with_stitching = True  # should be False with the new training
-    evaluate_segmentation = True  # can be False with the new training, might speed up evaluation?
+    evaluate_segmentation = False  # can be False with the new training, might speed up evaluation?
+    save_below_AP = 0.85
 
+    # Metrics
+    mAP_metric = torchmetrics.detection.MeanAveragePrecision(class_metrics=True, extended_summary=False, backend='faster_coco_eval')
 
-    for ds in [
+    for ds_idx, ds in enumerate([
         dl.OrganoID(split='test'),
         dl.OrganoID(split='test_C'),
         dl.OrganoID(split='test_Lung'),
@@ -147,18 +154,19 @@ if __name__=='__main__':
         dl.Tellu(split='test'),
         # dl.MultiOrg(split='test_normal'),
         # dl.MultiOrg(split='test_macros'),
-    ]:
+    ]):
         detection_mAP = []
         segmentation_mAP = []
         detection_metrics = []
         segmentation_metrics = []
         det_data = []
         seg_data = []
+        mAP_metric.reset()
         for idx in tqdm(range(len(ds))):
             im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
             im, flatfield = dl.normalize(im)
 
-            if use_fixed_patch_for_organoID:
+            if fixed_patch_size is None:
                 H, W = im.shape[:2]
                 patch_size = int(np.ceil(max(H, W) * 7 / 12))
                 print(patch_size)
@@ -168,12 +176,13 @@ if __name__=='__main__':
             # Prediction with optimal threshold
             contours, boxes, scores = model.forward(im, 
                                                     patch_size=patch_size, 
-                                                    predict_masks=evaluate_segmentation,
+                                                    predict_masks=evaluate_segmentation or evaluate_with_stitching,
                                                     min_diameter=30/1.29)
             
             # Sets no threshold for computing the mAP. 
-            contours, boxes, scores = model.set_threshold(conf_thres=0.5 if evaluate_with_stitching else 0.0, 
-                                                          predict_masks=evaluate_segmentation)
+            if not evaluate_with_stitching:
+                contours, boxes, scores = model.set_threshold(conf_thres=0.0, 
+                                                              predict_masks=evaluate_segmentation or evaluate_with_stitching)
 
             # Detection
             iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
@@ -190,14 +199,41 @@ if __name__=='__main__':
                 'precision': prec_scores,
                 'recall': recall_scores, 
             }))
+            mAP_metric.update(preds=[{'boxes': torch.from_numpy(boxes), 
+                                      'scores': torch.from_numpy(scores), 
+                                      'labels': torch.zeros(scores.shape, dtype=torch.int)}], 
+                              target=[{'boxes': torch.from_numpy(gt_boxes), 
+                                      'labels': torch.zeros((gt_boxes.shape[0],), dtype=torch.int)}])
+            
+            # Visualize with threshold 0.5
+            if mAP_scores[0] < save_below_AP:
+                fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
+                plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
+                plot_boxes(im, boxes[scores>0.5], format='yxyx_px', ax=ax, show_image=False, color='red')
+                plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}_{iou_thres[0]}'
+                results_dir.mkdir(exist_ok=True)
+                (results_dir / 'plots').mkdir(exist_ok=True)
+                plot_dir.mkdir(exist_ok=True)
+                plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_50_ap50_{mAP_scores[0]:.3f}.png', dpi=200)
+                plt.close('all')
+
 
             # Segmentation
             if (gt_mask is not None) and evaluate_segmentation:
-                iou_matrix_seg = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=pp.convert_mask_to_binary(gt_mask))
-                mAP_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_segmentation_all(
-                    iou_matrix_seg, iou_thres, scores, thresholds
+                gt_masks = pp.convert_mask_to_binary(gt_mask)
+                iou_matrix_seg = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=gt_masks)
+                mAP_scores, haussdorf_scores, haussdorf_95_scores, masd_scores, assd_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_segmentation_all(
+                    iou_matrix_seg, iou_thres, scores, thresholds, gt_masks, contours
                 )
-                segmentation_mAP.append(mAP_scores)
+
+                segmentation_mAP.append(pd.DataFrame({
+                    'iou_thres': map(lambda x: f'{x:.3f}', iou_thres), 
+                    'AP': mAP_scores, 
+                    'haussdorf_scores': haussdorf_scores, 
+                    'haussdorf_95_scores': haussdorf_95_scores, 
+                    'masd_scores': masd_scores, 
+                    'assd_scores': assd_scores,
+                }))
                 segmentation_metrics.append(pd.DataFrame({
                     'thres': map(lambda x: f'{x:.3f}', thresholds), 
                     'pq': pq_scores,
@@ -211,7 +247,7 @@ if __name__=='__main__':
 
             if evaluate_with_stitching:
                 for thres in thresholds:
-                    contours, boxes, scores = model.set_threshold(conf_thres=thres, predict_masks=evaluate_segmentation)
+                    contours, boxes, scores = model.set_threshold(conf_thres=thres, predict_masks=True)
                     
                     iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
                     tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
@@ -225,15 +261,6 @@ if __name__=='__main__':
                         seg_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
 
 
-                    # fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
-                    # plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
-                    # plot_boxes(im, boxes, format='yxyx_px', ax=ax, show_image=False, color='red')
-                    # plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}'
-                    # results_dir.mkdir(exist_ok=True)
-                    # (results_dir / 'plots').mkdir(exist_ok=True)
-                    # plot_dir.mkdir(exist_ok=True)
-                    # plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_{int(thres*100)}.png', dpi=200)
-                    # plt.close('all')
 
         det_data = pd.DataFrame(data=det_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
         det_data.to_csv(results_dir / f'{model_name}_stiched_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
@@ -258,77 +285,19 @@ if __name__=='__main__':
         mean_metrics = detection_metrics.groupby('thres', as_index=False).mean()
         mean_metrics.to_csv(results_dir / f'{model_name}_mean_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
+        res = mAP_metric.compute()
+        mAP_metric.reset()
+        with open(results_dir / f'{model_name}_mean_detection_torch_mAP_{str(ds)}_{ds.split}.csv', 'w') as f:
+            json.dump({k: v.item() for k, v in res.items()}, f)
+
         if len(segmentation_mAP) > 0:
-            segmentation_mAP = pd.DataFrame(data=segmentation_mAP, columns=iou_thres)
+            segmentation_mAP = pd.concat(segmentation_mAP, axis=0)
             segmentation_mAP.to_csv(results_dir / f'{model_name}_segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
-            segmentation_mAP.mean().to_csv(results_dir / f'{model_name}_mean_segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
+            mean_metrics = segmentation_mAP.groupby('iou_thres', as_index=False).mean()
+            mean_metrics.to_csv(results_dir / f'{model_name}_mean_segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
 
             segmentation_metrics = pd.concat(segmentation_metrics, axis=0)
             segmentation_metrics.to_csv(results_dir / f'{model_name}_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
             mean_metrics = segmentation_metrics.groupby('thres', as_index=False).mean()
             mean_metrics.to_csv(results_dir / f'{model_name}_mean_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
-
-
-    for ds in [
-        dl.OrgaSegment(split='test'),
-        dl.OrgaQuant(split='test'),
-        dl.OrgaExtractor(split='test'),
-        dl.Tellu(split='test'),
-        dl.NewData(split='test'),
-    ]:
-        # Fixed patch size of 512
-        patch_size = 512
-        print(patch_size)
-
-        det_data = []
-        seg_data = []
-        for idx in tqdm(range(len(ds))):  # len(ds))):
-            im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
-            im, flatfield = dl.normalize(im)
-            # im = (im / im.max() * 255).astype(np.uint8)
-            # im = np.stack((im, im, im), axis=2)
-
-            H, W = im.shape[:2]
-
-            contours, boxes, scores = model.forward(im, patch_size=patch_size, predict_masks=True, min_diameter=30/1.29)
-            for thres in thresholds:
-                contours, boxes, scores = model.set_threshold(conf_thres=thres, predict_masks=True)
-                
-                iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
-                tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
-                    pp.compute_metrics_detection_from_iou_matrix(iou_matrix=iou_matrix)
-                det_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
-                
-                if gt_mask is not None:
-                    iou_matrix = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=pp.convert_mask_to_binary(gt_mask))
-                    tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
-                        pp.compute_metrics_segmentation_from_iou_matrix(iou_matrix=iou_matrix)
-                    seg_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
-
-
-                fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
-                plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
-                plot_boxes(im, boxes, format='yxyx_px', ax=ax, show_image=False, color='red')
-                plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}'
-                results_dir.mkdir(exist_ok=True)
-                (results_dir / 'plots').mkdir(exist_ok=True)
-                plot_dir.mkdir(exist_ok=True)
-                plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_{int(thres*100)}_ps_{patch_size}.png', dpi=200)
-                plt.close('all')
-
-        det_data = pd.DataFrame(data=det_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-        det_data.to_csv(results_dir / f'{model_name}_test_metrics_{str(ds)}_{ds.split}_ps_{patch_size}.csv', index=False)
-        
-        mean_metrics = det_data.groupby('thres', as_index=False).mean()
-        mean_metrics.to_csv(results_dir / f'{model_name}_mean_test_metrics_{str(ds)}_{ds.split}_ps_{patch_size}.csv', index=False)
-
-        if len(seg_data) > 0:
-            seg_data = pd.DataFrame(data=seg_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-            seg_data.to_csv(results_dir / f'{model_name}_segmentation_test_metrics_{str(ds)}_{ds.split}_ps_{patch_size}.csv', index=False)
-
-            mean_metrics = seg_data.groupby('thres', as_index=False).mean()
-            mean_metrics.to_csv(results_dir / f'{model_name}_segmentation_mean_test_metrics_{str(ds)}_{ds.split}_ps_{patch_size}.csv', index=False)
-
-        print(det_data.groupby('thres').mean())
-        

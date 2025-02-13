@@ -12,6 +12,7 @@
 # import numpy as np
 import json
 from scipy.optimize import linear_sum_assignment
+import scipy.spatial
 from skimage.measure import label
 from sklearn import metrics
 
@@ -639,6 +640,10 @@ def greedy_matching(iou_matrix, iou_threshold):
     num_gts = iou_matrix.shape[1]
 
     is_true_match = np.zeros(num_preds, dtype=bool)  # Does the prediction match with a ground truth?
+
+    pred_ids = []
+    gt_ids = []
+    remaining_gts = np.arange(num_gts)
     
     for i in range(num_preds):
         if num_gts == 0:
@@ -657,15 +662,18 @@ def greedy_matching(iou_matrix, iou_threshold):
         # If IoU is high enough, mark as a TP
         if best_iou >= iou_threshold:
             is_true_match[i] = True
+            pred_ids.append(i)
+            gt_ids.append(remaining_gts[best_gt_idx])
             # Removes column with assigned ground truth
             iou_matrix = np.concatenate([iou_matrix[:, :best_gt_idx], 
                                          iou_matrix[:, best_gt_idx+1:]], axis=1)
+            remaining_gts = np.concatenate([remaining_gts[:best_gt_idx], remaining_gts[best_gt_idx+1:]], axis=0)
 
         iou_matrix = iou_matrix[1:]
     
     fns = num_gts - np.sum(is_true_match)
 
-    return is_true_match, fns  # True for TP, False for FP
+    return is_true_match, fns, pred_ids, gt_ids  # True for TP, False for FP
 
 
 def compute_ap(precision, recall):
@@ -697,7 +705,7 @@ def compute_metrics_detection_all(iou_matrix, iou_thres, scores, thresholds):
     # AP scores
     ap_scores = []
     for iou_t in iou_thres:
-        is_true_match, fns = greedy_matching(iou_matrix.copy(), iou_threshold=iou_t)
+        is_true_match, fns, pred_ids, gt_ids = greedy_matching(iou_matrix.copy(), iou_threshold=iou_t)
         rc = np.cumsum(is_true_match) / max(num_gts, 1)  # Recall
         pr = np.cumsum(is_true_match) / (np.arange(num_preds) + 1)  # Precision
         rc = rc[is_true_match]
@@ -755,6 +763,144 @@ def compute_metrics_detection_all(iou_matrix, iou_thres, scores, thresholds):
     
     return ap_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
 
+def contour_to_points(geometry, shape, thickness=1):
+    """
+    Convert a Shapely geometry to a binary mask with only the contour drawn. 
+
+    Then extracts all point coordinates of the drawn contour.
+
+    Args:
+        geometry: Shapely Polygon or MultiPolygon.
+        shape: (H, W) tuple defining the mask size.
+        thickness: Line thickness in pixels.
+
+    Returns:
+        mask: (H, W) binary numpy array.
+    """
+    mask = np.zeros(shape, dtype=np.uint8)  # Initialize empty mask
+
+    if geometry.is_empty:
+        return np.array([], dtype=float).reshape((-1, 2))  # Return empty array of coordinates
+
+    contours = []  # List to store all contours
+
+    # Process Polygon or MultiPolygon
+    if geometry.geom_type == "Polygon":
+        contours.append(np.array(geometry.exterior.coords, dtype=np.int32))  # Outer contour
+        contours.extend([np.array(ring.coords, dtype=np.int32) for ring in geometry.interiors])  # Inner holes
+    elif geometry.geom_type == "MultiPolygon":
+        for poly in geometry.geoms:
+            contours.append(np.array(poly.exterior.coords, dtype=np.int32))
+            contours.extend([np.array(ring.coords, dtype=np.int32) for ring in poly.interiors])
+    else:
+        raise ValueError(f"Unsupported geometry type: {geometry.geom_type}")
+
+    # Draw the contours (not filled)
+    cv2.polylines(mask, contours, isClosed=True, color=1, thickness=thickness)
+
+    coords = np.nonzero(mask)
+
+    return np.stack(coords, axis=1)
+
+
+def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, gt_masks, contours):
+    num_preds = iou_matrix.shape[0]
+    num_gts = iou_matrix.shape[1]
+    
+    # Sort detections by confidence score (highest first)
+    sorted_indices = np.argsort(-scores)
+    iou_matrix = iou_matrix[sorted_indices]  # Reorder IoU matrix
+    conf_scores = scores[sorted_indices]  # Reorder confidence scores
+
+    # AP scores, segmentation metrics
+    ap_scores = []
+    # haussdorf_contour_scores = []
+    haussdorf_scores = []
+    haussdorf_95_scores = []
+    masd_scores = []
+    assd_scores = []
+    for iou_t in iou_thres:
+        is_true_match, fns, pred_ids, gt_ids = greedy_matching(iou_matrix.copy(), iou_threshold=iou_t)
+        rc = np.cumsum(is_true_match) / max(num_gts, 1)  # Recall
+        pr = np.cumsum(is_true_match) / (np.arange(num_preds) + 1)  # Precision
+        rc = rc[is_true_match]
+        pr = pr[is_true_match]
+        ap = compute_ap(precision=pr, recall=rc)
+        ap_scores.append(ap)
+
+        # haussdorf_contour = []
+        haussdorf = []
+        haussdorf_95 = []
+        masd = []
+        assd = []
+        for i, j in zip(pred_ids, gt_ids):
+            pred_contour = contours[i]
+            gt_mask = gt_masks[j]
+            gt_contour = mask_to_contour(gt_mask)
+            # haussdorf_contour.append(shapely.hausdorff_distance(pred_contour, gt_contour, densify=0.8))
+            pred_contour_points = contour_to_points(pred_contour, gt_mask.shape, thickness=1)
+            gt_contour_points = contour_to_points(gt_contour, gt_mask.shape, thickness=1)
+            distances = scipy.spatial.distance.cdist(pred_contour_points, gt_contour_points, metric='euclidean')
+            dist_a_B = np.min(distances, axis=1)
+            dist_b_A = np.min(distances, axis=0)
+            haussdorf.append(np.max(np.concatenate([dist_a_B, dist_b_A])))
+            haussdorf_95.append(max(np.quantile(dist_a_B, 0.95), np.quantile(dist_b_A, 0.95)))
+            masd.append((np.mean(dist_a_B) + np.mean(dist_b_A)) / 2)
+            assd.append(np.mean(np.concatenate([dist_a_B, dist_b_A])))
+        # haussdorf_contour_scores.append(np.mean(haussdorf_contour))
+        haussdorf_scores.append(np.mean(haussdorf))
+        haussdorf_95_scores.append(np.mean(haussdorf_95))
+        masd_scores.append(np.mean(masd))
+        assd_scores.append(np.mean(assd))
+
+    # F1 score, ... based on confidence thresholds
+    pq_scores = []
+    iou_scores = []
+    dice_scores = []
+    f1_scores = []
+    prec_scores = []
+    recall_scores = []
+
+    iou_threshold = 0.5
+    for thres in thresholds:
+        # Removes predictions with confidence below thres.
+        cost_matrix = -iou_matrix.copy()
+        cost_matrix = cost_matrix[conf_scores >= thres]
+
+        # Greedy matching for optimal assignment given a certain threshold
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        matched_ious = -cost_matrix[row_ind, col_ind]
+
+        tp_ious = matched_ious[matched_ious >= iou_threshold]
+
+        # Counts
+        tp = (matched_ious >= iou_threshold).sum()
+        fp = num_preds - tp
+        fn = num_gts - tp
+    
+        # Calculate precision, recall, and F1-score
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+    
+        # Calculate mean IoU
+        mean_iou = np.mean(tp_ious) if tp > 0 else 0
+        
+        # # Calculate Dice coefficient
+        dice_coefficient = np.mean(2 * tp_ious / (1 + tp_ious)) if tp > 0 else 0
+
+        # # Calculate PQ
+        # pq = np.sum(tp_ious) / (tp + 0.5 * fp + 0.5 * fn)
+        pq = 0.0
+
+        pq_scores.append(pq)
+        iou_scores.append(mean_iou)
+        dice_scores.append(dice_coefficient)
+        f1_scores.append(f1_score)
+        prec_scores.append(precision)
+        recall_scores.append(recall)
+    
+    return ap_scores, haussdorf_scores, haussdorf_95_scores, masd_scores, assd_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
 
 
 
@@ -789,13 +935,13 @@ def mask_to_contour(mask):
 def compute_iou_matrix_segmentation_contours(pred_contours, gt_masks):
     num_preds = len(pred_contours)
     num_gts = gt_masks.shape[0]
-    print('gt_masks.shape', gt_masks.shape)
+    # print('gt_masks.shape', gt_masks.shape)
     
     # Create the IoU matrix
     iou_matrix = np.zeros((num_preds, num_gts))
     
     for j, gt_mask in enumerate(gt_masks):
-        print('gt_mask.shape, gt_mask.dtype', gt_mask.shape, gt_mask.dtype)
+        # print('gt_mask.shape, gt_mask.dtype', gt_mask.shape, gt_mask.dtype)
         gt_contour = mask_to_contour(gt_mask)
         for i, pred_contour in enumerate(pred_contours):
             intersection = shapely.intersection(gt_contour, pred_contour).area
