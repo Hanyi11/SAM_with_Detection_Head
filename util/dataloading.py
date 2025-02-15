@@ -110,7 +110,7 @@ def normalize(image, smoothness=10, correct_bg=True):
     if correct_bg:
         return image, flatfields
     else:
-        return image
+        return image, None
 
 
 def filter_boxes_yxyx(boxes, ymin, xmin, ymax, xmax, threshold=10):

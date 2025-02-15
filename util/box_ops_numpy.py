@@ -19,7 +19,7 @@ def mask_to_boxes(labels):
         y_coords, x_coords = np.nonzero(mask)
         box = [y_coords.min(), x_coords.min(), y_coords.max(), x_coords.max()]
         boxes.append(box)
-    return np.array(boxes)
+    return np.array(boxes).reshape((-1, 4))
 
 
 def cxcywh_to_xyxy(boxes):

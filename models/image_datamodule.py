@@ -463,7 +463,9 @@ class FasterRCNNDataset(Dataset):
                  augmentation: bool = True,
                  min_overlap: float = 0.3, # 0.9,
                  min_box_side: float = 0.05,
-                 version_FasterRCNN: Literal["v1", "v2"]="v2"):
+                 version_FasterRCNN: Literal["v1", "v2"]="v2",
+                 decoder_arch: Literal["FRCNN", "DETR_frcnn"] = "FRCNN", 
+                 **kwargs):
         super().__init__()
         
         # Dataset parameters
@@ -480,6 +482,7 @@ class FasterRCNNDataset(Dataset):
         self.min_box_side = min_box_side
 
         # Set model for detection
+
         if version_FasterRCNN == "v2":
             self.transforms = FasterRCNN_ResNet50_FPN_V2_Weights.COCO_V1.transforms()
         elif version_FasterRCNN == "v1":

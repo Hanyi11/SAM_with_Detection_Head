@@ -135,7 +135,7 @@ if __name__=='__main__':
     # use_fixed_patch_for_organoID = False  # If true, uses 4 patches per image and adjusts their size correspondingly.
     fixed_patch_size = (512, 2048)  # If None, uses 4 patches per image and adjusts their size correspondingly.
     evaluate_with_stitching = True  # should be False with the new training
-    evaluate_segmentation = False  # can be False with the new training, might speed up evaluation?
+    evaluate_segmentation = True  # can be False with the new training, might speed up evaluation?
     save_below_AP = 0.85
 
     # Metrics
@@ -177,7 +177,7 @@ if __name__=='__main__':
             contours, boxes, scores = model.forward(im, 
                                                     patch_size=patch_size, 
                                                     predict_masks=evaluate_segmentation or evaluate_with_stitching,
-                                                    min_diameter=30/1.29)
+                                                    min_diameter=30/1.29 if str(ds).startswith('MultiOrg') else 10)
             
             # Sets no threshold for computing the mAP. 
             if not evaluate_with_stitching:

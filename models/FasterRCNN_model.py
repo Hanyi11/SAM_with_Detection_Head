@@ -4,6 +4,7 @@ import pytorch_lightning as pl
 
 # torchvision libraries
 import torch
+from torch import nn
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor, FasterRCNN_ResNet50_FPN_V2_Weights, FasterRCNN_ResNet50_FPN_Weights
 from torchvision.models import ResNet50_Weights
@@ -31,6 +32,9 @@ class FasterRCNN_model(pl.LightningModule):
                 aux_loss: bool = False,
                 num_classes: int = 2, 
                 version_FasterRCNN: Literal["v1", "v2"] = "v2", 
+                decoder_arch: Literal["FRCNN", "FRCNN_emb"] = "FRCNN", 
+                encoder_name = None,
+                **kwargs,  # For unused config params.
                 ):
         super().__init__()
         self.save_hyperparameters()
@@ -38,6 +42,8 @@ class FasterRCNN_model(pl.LightningModule):
         # Parameters for model initialization
         self.num_classes = num_classes
         self.version_FasterRCNN = version_FasterRCNN
+        self.decoder_arch = decoder_arch
+        self.encoder_name = encoder_name
 
         # Parameters for optimizer and scheduler
         self.learning_rate = learning_rate
@@ -52,8 +58,8 @@ class FasterRCNN_model(pl.LightningModule):
         self.training_step_outputs = []
         self.val_step_outputs = []
     
+    
     def get_pretrained_FasterRCNN(self):
-
         # load a model pre-trained on COCO
         if self.version_FasterRCNN == "v1":
             model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
@@ -67,6 +73,35 @@ class FasterRCNN_model(pl.LightningModule):
                 # weights=FasterRCNN_ResNet50_FPN_V2_Weights.COCO_V1
                 weights_backbone="ResNet50_Weights.IMAGENET1K_V1"
                 )
+
+
+        if self.decoder_arch == 'FRCNN_emb':
+            # Modify the first convolution layer to accept n-channel input
+            if self.encoder_name.startswith('SAM'):
+                in_channels = 256  # New input channels
+            else:
+                raise ValueError(f'Only SAM variants currently supported as encoder, not {self.encoder_name}')
+            old_conv = model.backbone.body.conv1
+
+            # Create a new conv layer with same parameters but 256 input channels
+            new_conv = nn.Conv2d(
+                in_channels, 
+                old_conv.out_channels, 
+                kernel_size=old_conv.kernel_size, 
+                stride=old_conv.stride, 
+                padding=old_conv.padding, 
+                bias=(old_conv.bias is not None)
+            )
+
+            # Initialize new weights (e.g., by averaging the original 3-channel weights)
+            with torch.no_grad():
+                new_conv.weight[:, :3] = old_conv.weight  # Copy RGB weights
+                if in_channels > 3:
+                    new_conv.weight[:, 3:] = old_conv.weight[:, :1].repeat(1, in_channels - 3, 1, 1)  # Copy first channel weights
+
+            # Replace the original conv layer
+            model.backbone.body.conv1 = new_conv
+
         
         # get number of input features for the classifier
         in_features = model.roi_heads.box_predictor.cls_score.in_features
@@ -74,8 +109,8 @@ class FasterRCNN_model(pl.LightningModule):
         # replace the pre-trained head with a new one
         model.roi_heads.box_predictor = FastRCNNPredictor(in_features, self.num_classes) 
 
-
         return model
+    
 
     def forward(self, image):
 

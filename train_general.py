@@ -6,11 +6,15 @@ from pathlib import Path
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
+import torch
 import models
 # from detection_head_datamodule import DetectionHeadDataModule
 # from detection_head_model import DetectionHead
 import wandb
 import os
+
+import models.FasterRCNN_model
+import models.detection_head_model
 
 # --train_dir="" --val_dir="" --sub_name="SAM_large"
 def get_args_parser():
@@ -21,6 +25,8 @@ def get_args_parser():
     parser.add_argument('--val_dirs', type=str, nargs='+', required=True, help='List of directories containing the validation dataset.')
     parser.add_argument('--encoder_name', type=str, required=True, help='Encoder used for calculating embeddings: '
                         '["SAM_base", "MedSAM", "CellSAM", "SAM_large", "MicroSAM_huge", "SAM2_large"]')
+    parser.add_argument('--decoder_arch', type=str, required=True, help='Decoder architecture which predicts boxes and scores: '
+                        '["FRCNN" (Faster R-CNN), "FRCNN_emb" (Faster R-CNN based on embeddings), "DETR_frcnn" (DETr based on Faster R-CNN backbone), "DETR_emb" (DETr based on embeddings)]')
     parser.add_argument('--batch_size', type=int, default=4, help='Number of samples in each batch.')
     parser.add_argument('--batches_per_epoch', type=int, default=500, help='Define how many batches are used during training of each epoch.'
                         ' The data is then sampled by a RandomSample instead of using shuffle in the data loader')
@@ -37,18 +43,22 @@ def get_args_parser():
     parser.add_argument('--lr_drop', default=200, type=int, help='Number of epochs before dropping the learning rate.')
 
     # Matcher coefficients for computing the matching cost
+    parser.add_argument('--matching', type=str, required=True, help='Matching used to assign ground truth to predictions: '
+                        '["hungarian", "greedy"]')
     parser.add_argument('--set_cost_class', default=1, type=float, help="Class coefficient in the matching cost.")
     parser.add_argument('--set_cost_bbox', default=5, type=float, help="L1 box coefficient in the matching cost.")
     parser.add_argument('--set_cost_giou', default=2, type=float, help="GIoU box coefficient in the matching cost.")
 
     # Loss coefficients for computing the loss
+    parser.add_argument('--loss', type=str, required=True, help='Loss: '
+                        '["DETR", "FRCNN"]')
     parser.add_argument('--bbox_loss_coef', default=5, type=float, help="Coefficient for bounding box loss.")
     parser.add_argument('--giou_loss_coef', default=2, type=float, help="Coefficient for GIoU loss.")
     parser.add_argument('--eos_coef', default=0.1, type=float, help="Relative classification weight of the no-object class.")
 
     # Model and training parameters
     parser.add_argument('--max_epochs', type=int, default=500, help='Maximum number of epochs for training.')
-    parser.add_argument('--num_queries', type=int, default=100, help='Maximum number of queries.')
+    parser.add_argument('--num_queries', type=int, default=200, help='Maximum number of queries.')
     parser.add_argument('--transformer_dim', type=int, default=256, help='Dimension of transformer embeddings.')
     parser.add_argument('--dropout', default=0.1, type=float, help="Dropout applied in the transformer.")
     parser.add_argument('--nheads', type=int, default=8, help='Number of heads in the multihead attention mechanism.')
@@ -72,11 +82,34 @@ def get_args_parser():
 
 
 
+def initialize_model(args):
+    if args.decoder_arch == "DETR_emb":
+        backbone = torch.nn.Identity()
+        decoder = models.detection_head_model.DetectionTransformer(backbone=backbone, **args)
+        model = models.detection_head_model.TrainingModule(model=decoder, **args)
+    elif args.decoder_arch == "DETR_frcnn":
+        model = models.detection_head_model.DetectionHead(**args)
+    elif args.decoder_arch == "FRCNN":
+        model = models.FasterRCNN_model.FasterRCNN_model(**args)
+    elif args.decoder_arch == "FRCNN_emb":
+        model = models.FasterRCNN_model.FasterRCNN_model(**args)
+    else:
+        raise ValueError(f'args.decoder_arch: {args.decoder_arch} is invalid / not supported.')
+    return model
+
+
+
+
+
+
+
 def train(args) -> None:
     # Print all parameters before training
     print("Training Parameters:")
     for arg in vars(args):
         print(f"{arg}: {getattr(args, arg)}")
+        
+    model = initialize_model(args)
 
     # Initialize the data module with training and validation data paths and batch size
     data_module = DetectionHeadDataModule(
@@ -126,26 +159,9 @@ def train(args) -> None:
 
     if (args.checkpoint_path is not None) and (args.checkpoint_path != ""):
         # Load the pre-trained checkpoint
-        model = DetectionHead.load_from_checkpoint(
+        # TODO: replace with Trainer.fit(model, ckpt_path=args.checkpoint_path)
+        model = model.load_from_checkpoint(
             args.checkpoint_path,
-            learning_rate=args.learning_rate,
-            weight_decay=args.weight_decay,
-            lr_drop=args.lr_drop,
-            set_cost_class=args.set_cost_class,
-            set_cost_bbox=args.set_cost_bbox,
-            set_cost_giou=args.set_cost_giou,
-            max_epochs=args.max_epochs,
-            num_queries=args.num_queries,
-            transformer_dim=args.transformer_dim,
-            nheads=args.nheads,
-            dim_feedforward=args.dim_feedforward,
-            num_layers=args.num_layers,
-            dropout=args.dropout,
-            pre_norm=args.pre_norm,
-            bbox_loss_coef=args.bbox_loss_coef,
-            giou_loss_coef=args.giou_loss_coef,
-            eos_coef=args.eos_coef,
-            aux_loss=args.aux_loss
         )
     else:
         # Create new model

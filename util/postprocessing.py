@@ -890,8 +890,7 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
         dice_coefficient = np.mean(2 * tp_ious / (1 + tp_ious)) if tp > 0 else 0
 
         # # Calculate PQ
-        # pq = np.sum(tp_ious) / (tp + 0.5 * fp + 0.5 * fn)
-        pq = 0.0
+        pq = np.sum(tp_ious) / (tp + 0.5 * fp + 0.5 * fn)
 
         pq_scores.append(pq)
         iou_scores.append(mean_iou)
