@@ -8,7 +8,7 @@
 #SBATCH --partition gpu_p
 
 #SBATCH --cpus-per-task 8
-#SBATCH --mem=100G
+#SBATCH --mem=160G
 
 #SBATCH --gres=gpu:1
 
@@ -26,4 +26,6 @@ source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
 # python scripts/evaluate_multiorg.py
 # python scripts/evaluate_other_testsets.py
-python scripts/evaluate_all_testsets.py
+
+# python scripts/evaluate_all_testsets.py
+python scripts/evaluate_sam_segmentation_with_gt.py

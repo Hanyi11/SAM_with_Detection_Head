@@ -202,13 +202,13 @@ class SAMOS():
         # Postprocessing
         self.filter_diameter(min_diameter, predict_masks=predict_masks)
         
-        if predict_masks:
-            keep_masks = [contour.area >= 100 for contour in self.pred_contours]
-            self.pred_contours = [c for c, keep in zip(self.pred_contours, keep_masks) if keep]
-            self.pred_boxes = self.pred_boxes[keep_masks]
-            self.pred_patch_numbers = self.pred_patch_numbers[keep_masks]
-            self.offsets = self.offsets[keep_masks]
-            self.pred_scores = self.pred_scores[keep_masks]
+        # if predict_masks:
+        #     keep_masks = [contour.area >= 100 for contour in self.pred_contours]
+        #     self.pred_contours = [c for c, keep in zip(self.pred_contours, keep_masks) if keep]
+        #     self.pred_boxes = self.pred_boxes[keep_masks]
+        #     self.pred_patch_numbers = self.pred_patch_numbers[keep_masks]
+        #     self.offsets = self.offsets[keep_masks]
+        #     self.pred_scores = self.pred_scores[keep_masks]
         
         # TODO: Remove boxes at patch borders
 

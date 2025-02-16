@@ -31,6 +31,7 @@ from util.samos import SAMOS
 from util.ssd import SSDPredictor
 from util.FasterRCNN import FasterRCNNPredictor
 from util.cellpose import Cellpose
+from util.gt_sam import GroundTruthSAM
 
 base_datadir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/original_data/')
 results_dir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/results')
@@ -109,30 +110,6 @@ def get_unique_id_from_img_path(image_path):
 if __name__=='__main__':
     # Configuration
 
-    # model_name = 'SAMOS_last'
-    # model = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_ablation_dataset_5_pre_OI_NeurIPS_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_ablation_dataset_5_pre_OI_NeurIPS_True_32_200-last_epoch=499-val_loss=5.44.ckpt')
-
-    # model_name = 'retrained_last'
-    # model = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-last_epoch=799-val_loss=4.93.ckpt')
-    
-    # model_name = 'retrained_best'
-    # model = SAMOS(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200/DetectionHead_SAM_large_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_added_eval_True_32_200-best_epoch=649-val_loss=4.83.ckpt')
-    
-    # model_name = 'SSD_full_best'
-    # model = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_full_data_09012025_True_32_200/SSD_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_full_data_09012025_True_32_200-best_epoch=274-val_loss=2.81.ckpt')
-
-    # model_name = 'SSD_full_last_better_thres'
-    # model = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_full_data_09012025_True_32_200/SSD_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_full_data_09012025_True_32_200-last_epoch=799-val_loss=2.85.ckpt')
-
-    # model_name = 'SSD_multiorg_last_multiscale'
-    # model = SSDPredictor('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/SSD/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_with_090_overlap_True_32_200/SSD_MultiOrg_train_macros_MultiOrg_train_normal_multiorg_with_090_overlap_True_32_200-last_epoch=799-val_loss=3.13.ckpt')
-
-    # model_name = 'legacy_FasterRCNN_v2_other_testsets_batch16_last'
-    # model = FasterRCNNPredictor(checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained/FasterRCNN/FasterRCNNv2_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_FasterRCNN_16012025_True_16_200/FasterRCNNv2_OrganoID_train_MultiOrg_train_macros_MultiOrg_train_normal_OrgaExtractor_train_OrgaQuant_train_OrgaSegment_train_Tellu_train_NewData_train_FasterRCNN_16012025_True_16_200-last_epoch=649-val_loss=0.28.ckpt',
-    #                             version_FasterRCNN='v2')
-    
-    
-
     # Parameters
     thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.975]
     iou_thres = [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
@@ -141,32 +118,38 @@ if __name__=='__main__':
     fixed_patch_size = (512, 2048)  # If None, uses 4 patches per image and adjusts their size correspondingly.
     evaluate_with_stitching = False  # should be False with the new training
     evaluate_segmentation = True  # can be False with the new training, might speed up evaluation?
-    save_below_AP = 0.85
+    save_below_AP = 0.5
 
     # Metrics
     mAP_metric = torchmetrics.detection.MeanAveragePrecision(class_metrics=True, extended_summary=False, backend='faster_coco_eval')
     mAP_metric.warn_on_many_detections = False
 
     for model_name, model in [
-        ('cellpose_diam_[30]', Cellpose(diameter=[30])),
-        ('cellpose_diam_[100]', Cellpose(diameter=[100])),
-        ('cellpose_diam_[300]', Cellpose(diameter=[300])),
-        ('cellpose_diam_[100,300]', Cellpose(diameter=[100,300])),
-        ('cellpose_diam_[None]', Cellpose(diameter=[None])),
+        ('gt_sam1_sd_0_bias_0', GroundTruthSAM(sam_version='sam1', box_noise_std=0, box_noise_bias=0)),
+        ('gt_sam1_sd_1_bias_0', GroundTruthSAM(sam_version='sam1', box_noise_std=1, box_noise_bias=0)),
+        ('gt_sam1_sd_2_bias_0', GroundTruthSAM(sam_version='sam1', box_noise_std=2, box_noise_bias=0)),
+        ('gt_sam1_sd_3_bias_0', GroundTruthSAM(sam_version='sam1', box_noise_std=3, box_noise_bias=0)),
+        ('gt_sam1_sd_4_bias_0', GroundTruthSAM(sam_version='sam1', box_noise_std=4, box_noise_bias=0)),
+        ('gt_sam1_sd_5_bias_0', GroundTruthSAM(sam_version='sam1', box_noise_std=5, box_noise_bias=0)),
+        ('gt_sam1_sd_1_bias_1', GroundTruthSAM(sam_version='sam1', box_noise_std=1, box_noise_bias=1)),
+        ('gt_sam1_sd_2_bias_2', GroundTruthSAM(sam_version='sam1', box_noise_std=2, box_noise_bias=2)),
+        ('gt_sam1_sd_3_bias_3', GroundTruthSAM(sam_version='sam1', box_noise_std=3, box_noise_bias=3)),
+        ('gt_sam1_sd_4_bias_4', GroundTruthSAM(sam_version='sam1', box_noise_std=4, box_noise_bias=4)),
+        ('gt_sam1_sd_5_bias_5', GroundTruthSAM(sam_version='sam1', box_noise_std=5, box_noise_bias=5)),
     ]:
         for ds_idx, ds in enumerate([
-            dl.MultiOrg(split='test_macros'),
+            # dl.MultiOrg(split='test_macros'),
             dl.OrganoID(split='test'),
             dl.OrganoID(split='test_C'),
             dl.OrganoID(split='test_Lung'),
             dl.OrganoID(split='test_ACC'),
             dl.OrganoID(split='test_only_mouse'),
-            dl.OrgaExtractor(split='all'),
+            # dl.OrgaExtractor(split='all'),
             dl.NewData(split='all'),
             dl.OrgaSegment(split='test'),
-            dl.OrgaQuant(split='test'),
-            dl.Tellu(split='test'),
-            dl.MultiOrg(split='test_normal'),
+            # dl.OrgaQuant(split='test'),
+            # dl.Tellu(split='test'),
+            # dl.MultiOrg(split='test_normal'),
         ]):
             detection_mAP = []
             segmentation_mAP = []
@@ -187,7 +170,7 @@ if __name__=='__main__':
                     patch_size = fixed_patch_size
 
                 # Prediction with optimal threshold
-                contours, boxes, scores = model.forward(im, 
+                contours, boxes, scores = model.forward(im, gt_boxes=gt_boxes,
                                                         patch_size=patch_size, 
                                                         predict_masks=evaluate_segmentation or evaluate_with_stitching,
                                                         min_diameter=30/1.29 if str(ds).startswith('MultiOrg') else 10)

@@ -290,9 +290,9 @@ def patch_fixed(im, mask, boxes, size=512):
             yield im_crop, mask_crop, boxes_crop, overlap, int(im_start_x), int(im_start_y)
 
 
-def patch_image(im, size=512):
+def patch_image(im, size=512, overlap = 1/2):
     H, W = im.shape[:2]
-    padding = int(size / 12)
+    padding = int(size * overlap)
 
     # Avoid patching if the patch size is almost the image size:
     if size >= 0.8 * max(H, W):
@@ -316,10 +316,10 @@ def patch_image(im, size=512):
     # Compute number of patches per side with updated size
     n_patches_x = 1
     if W > size:
-        n_patches_x += int(np.ceil((W-size) / (size - 2*padding)))
+        n_patches_x += int(np.ceil((W-size) / (size - padding)))
     n_patches_y = 1
     if H > size:
-        n_patches_y += int(np.ceil((H-size) / (size - 2*padding)))
+        n_patches_y += int(np.ceil((H-size) / (size - padding)))
 
     grid_x = np.round(np.linspace(0, W-size, n_patches_x)).astype(int).tolist()
     grid_y = np.round(np.linspace(0, H-size, n_patches_y)).astype(int).tolist()
