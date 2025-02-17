@@ -104,7 +104,7 @@ def normalize(image, smoothness=10, correct_bg=True):
     # Normalize quantiles
     lower = np.quantile(image, 0.001, axis=(0,1), keepdims=True)
     upper = np.quantile(image, 0.999, axis=(0,1), keepdims=True)
-    image = (image - lower) / np.maximum(upper - lower, 1e-3)
+    image = (image - lower) / np.maximum(upper - lower, 1e-2)
     image = np.clip(image * 255, 0, 255).astype(np.uint8)
 
     if correct_bg:
@@ -113,7 +113,7 @@ def normalize(image, smoothness=10, correct_bg=True):
         return image, None
 
 
-def filter_boxes_yxyx(boxes, ymin, xmin, ymax, xmax, threshold=10):
+def filter_boxes_yxyx(boxes, ymin, xmin, ymax, xmax, min_overlap=0.99):
     """Boxes should be [[ymin, xmin, ymax, xmax]]. Threshold determines the necessary intersection area to include a box."""
     boxes = np.array(boxes).astype(float)
     assert boxes.ndim == 2, boxes.shape
@@ -134,8 +134,7 @@ def filter_boxes_yxyx(boxes, ymin, xmin, ymax, xmax, threshold=10):
     assert np.all(overlap <= 1.0), overlap
 
     # Filters boxes which have at least 20 % of their area within the patch
-    # has_overlap = intersection >= threshold
-    has_overlap = overlap >= 0.2  # 0.05
+    has_overlap = overlap >= min_overlap
 
     boxes_out = deepcopy(boxes)
     boxes_out = boxes_out[has_overlap]
@@ -145,6 +144,33 @@ def filter_boxes_yxyx(boxes, ymin, xmin, ymax, xmax, threshold=10):
     overlap = overlap[has_overlap]
 
     return boxes_out, overlap
+
+
+
+def filter_boxes_by_side_length(patch, boxes, min_ratio=0.02):
+    """
+    Filters bounding boxes that have width or height greater than 2% of the image side length.
+
+    Args:
+        patch (numpy.ndarray): The image (H, W).
+        boxes (numpy.ndarray): Array of shape (N, 4) with [x_min, y_min, x_max, y_max] format.
+        min_ratio (float): The minimum ratio threshold.
+
+    Returns:
+        numpy.ndarray: Filtered boxes.
+    """
+    H, W = patch.shape[:2]  # Get image height and width
+    min_size = min(H, W) * min_ratio  # Compute 2% of the smaller image side
+
+    # Compute box widths and heights
+    widths = boxes[:, 2] - boxes[:, 0]  # x_max - x_min
+    heights = boxes[:, 3] - boxes[:, 1]  # y_max - y_min
+
+    # Keep boxes where width or height is > 2% of the image side length
+    keep_mask = (widths > min_size) & (heights > min_size)
+    
+    return boxes[keep_mask]  # Return filtered boxes
+
 
 
 def patch(im, mask, boxes, size=512):
@@ -225,14 +251,14 @@ def patch(im, mask, boxes, size=512):
                     mask_crop = np.zeros((size, size), dtype=mask.dtype)
                     mask_crop[:int(im_end_y)-int(im_start_y), :int(im_end_x)-int(im_start_x)] = mask[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
 
-            boxes_crop, overlap = filter_boxes_yxyx(boxes, ymin=im_start_y, xmin=im_start_x, ymax=im_end_y, xmax=im_end_x, threshold=10)
+            boxes_crop, overlap = filter_boxes_yxyx(boxes, ymin=im_start_y, xmin=im_start_x, ymax=im_end_y, xmax=im_end_x)
 
             yield im_crop, mask_crop, boxes_crop, overlap, int(im_start_x), int(im_start_y)
 
 
-def patch_fixed(im, mask, boxes, size=512):
+def patch_fixed(im, mask, boxes, size=512, overlap=1/2, min_box_overlap=0.99):
     H, W = im.shape[:2]
-    padding = int(size / 4)
+    padding = int(size * overlap)
 
     # Avoid patching if the patch size is almost the image size:
     if size >= 0.8 * max(H, W):
@@ -242,10 +268,10 @@ def patch_fixed(im, mask, boxes, size=512):
     # Compute number of patches per side with updated size
     n_patches_x = 1
     if W > size:
-        n_patches_x += int(np.ceil((W-size) / (size - 2*padding)))
+        n_patches_x += int(np.ceil((W-size) / (size - padding)))
     n_patches_y = 1
     if H > size:
-        n_patches_y += int(np.ceil((H-size) / (size - 2*padding)))
+        n_patches_y += int(np.ceil((H-size) / (size - padding)))
 
     grid_x = np.round(np.linspace(0, W-size, n_patches_x)).astype(int).tolist()
     grid_y = np.round(np.linspace(0, H-size, n_patches_y)).astype(int).tolist()
@@ -285,9 +311,9 @@ def patch_fixed(im, mask, boxes, size=512):
                     mask_crop = np.zeros((size, size), dtype=mask.dtype)
                     mask_crop[:int(im_end_y)-int(im_start_y), :int(im_end_x)-int(im_start_x)] = mask[int(im_start_y):int(im_end_y), int(im_start_x):int(im_end_x)]
 
-            boxes_crop, overlap = filter_boxes_yxyx(boxes, ymin=im_start_y, xmin=im_start_x, ymax=im_end_y, xmax=im_end_x, threshold=10)
+            boxes_crop, box_overlap = filter_boxes_yxyx(boxes, ymin=im_start_y, xmin=im_start_x, ymax=im_end_y, xmax=im_end_x, min_overlap=min_box_overlap)
 
-            yield im_crop, mask_crop, boxes_crop, overlap, int(im_start_x), int(im_start_y)
+            yield im_crop, mask_crop, boxes_crop, box_overlap, int(im_start_x), int(im_start_y)
 
 
 def patch_image(im, size=512, overlap = 1/2):

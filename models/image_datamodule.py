@@ -17,30 +17,6 @@ from monai import transforms as tfs
 from util import box_ops_numpy
 
 
-def get_files_from_dir(directory: str, file_ending: str = '.png', file_beginning: str = '', keyword: str = '') -> List[str]:
-    """
-    Get files from a directory with specific criteria.
-
-    Args:
-        directory (str): Path to directory with files.
-        file_ending (str, optional): Ending of file. Defaults to '.png'.
-        file_beginning (str, optional): Beginning of the files you are looking for. Defaults to ''.
-        keyword (str, optional): Keyword that has to be in the file name. Defaults to ''.
-
-    Returns:
-        matching_files (List[str]): Files in the directory which meet the specified criteria.
-    """
-    matching_files = []
-    
-    for filename in os.listdir(directory):
-        if (filename.startswith(file_beginning) and
-            filename.endswith(file_ending) and
-            keyword in filename):
-            matching_files.append(os.path.join(directory, filename))
-    
-    return matching_files
-
-
 def compute_weights_new_data_only(dataset, factor_new_data, factor_neurips=1, factor_OI=1, factor_empty_patches=0.01):
     """
     Compute per-sample weights for a dataset, prioritizing certain subsets of data.
@@ -451,18 +427,14 @@ class Augmentation():
         return img, boxes
 
 
-class FasterRCNNDataset(Dataset):
+class ImageDataset(Dataset):
     def __init__(self, 
                  data_split_dirs: List[str],
                  data_split: Literal["train", "test", "val"] = "train", 
-                 encoder_name: Literal["SAM_base", "MedSAM", "CellSAM", 
-                                       "SAM_large", "MicroSAM_huge", "SAM2_large"] = "SAM_base",
-                 num_queries: int = 300, 
-                 base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data",
-                #  base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale",
+                 base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale",
                  augmentation: bool = True,
-                 min_overlap: float = 0.3, # 0.9,
-                 min_box_side: float = 0.05,
+                 min_overlap: float = 0.99, # 0.9,
+                 min_box_side: float = 0.02,
                  version_FasterRCNN: Literal["v1", "v2"]="v2",
                  decoder_arch: Literal["FRCNN", "DETR_frcnn"] = "FRCNN", 
                  **kwargs):

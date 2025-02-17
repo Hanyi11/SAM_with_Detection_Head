@@ -4,15 +4,18 @@
 #SBATCH -o /ictstr01/groups/shared/users/lion.gleiter/organoid_sam/logs/slurm/%x/%j_output.log
 #SBATCH -e /ictstr01/groups/shared/users/lion.gleiter/organoid_sam/logs/slurm/%x/%j_error.log
 
-#SBATCH --qos gpu_long
+#SBATCH --qos gpu_normal  
+# #SBATCH --qos gpu_long
 #SBATCH --partition gpu_p
 
 #SBATCH --cpus-per-task 8
 #SBATCH --mem=160G
 
 #SBATCH --gres=gpu:1
+# #SBATCH --constraint="a100_40gb|a100_80gb|h100_80gb"
 
-#SBATCH -t 03-00:00:00
+#SBATCH -t 01-00:00:00
+# #SBATCH -t 03-00:00:00
 #SBATCH --nice=10000
 
 echo $HOME

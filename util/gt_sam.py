@@ -13,18 +13,35 @@ from . import box_ops_numpy as bxn
 
 
 import detection_head_model as dhm
-sys.path.append('/home/icb/lion.gleiter/projects/organoid_sam/segment-anything/segment-anything')
+
+# Import SAM1
+sam1_path = '/home/icb/lion.gleiter/projects/organoid_sam/segment-anything/segment-anything'
+if sam1_path not in sys.path:
+    sys.path.append(sam1_path)
 from segment_anything import build_sam_vit_l, predictor
+
+# Import SAM2
+sam2_path = '/home/icb/lion.gleiter/projects/organoid_sam/sam2'
+if sam2_path not in sys.path:
+    sys.path.append(sam2_path)
+from sam2.build_sam import build_sam2
+from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 
 # Load SAM and detection head
 class GroundTruthSAM():
     def __init__(self, sam_version: Literal['sam1', 'sam2'] = 'sam1',
                  box_noise_std: int = 0, box_noise_bias: int = 0):
-        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.sam_version = sam_version
         if sam_version=='sam1':
             sam_model = build_sam_vit_l(checkpoint='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints/sam_vit_l_0b3195.pth')
-            self.sam_predictor = predictor.SamPredictor(sam_model=sam_model.to(device=device))
+            self.sam_predictor = predictor.SamPredictor(sam_model=sam_model.to(device=self.device))
+        elif sam_version=='sam2':
+            sam2_checkpoint = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints/sam2.1_hiera_large.pt"
+            model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
+            sam2 = build_sam2(model_cfg, sam2_checkpoint, device=self.device)
+            self.sam_predictor = SAM2ImagePredictor(sam2)
         else:
             raise ValueError(f'SAM version {sam_version} is currently not supported')
         
@@ -87,31 +104,46 @@ class GroundTruthSAM():
         
         embed_index = contains_box.index(True)
         image_embedding = self.image_embeddings[embed_index]
+        # print('image_embedding', image_embedding)
         offsets = self.embed_offsets[embed_index]
         off_y, off_x = offsets[:2]
 
         # Subtract offset from box
         input_box = box - np.array([off_y, off_x, off_y, off_x])
 
-        # normalize box to [0, 1]
-        H, W = offsets[2:] - offsets[:2]
-        input_box = torch.from_numpy(input_box / max(H, W))
-
         # Set image embedding
         for k, v in image_embedding.items():
             setattr(self.sam_predictor, k, v)
 
-        # [y x y x] --> [x y x y] in [0, 1024]
-        transformed_boxes = torch.tensor([[input_box[1], input_box[0], input_box[3], input_box[2]]]) * 1024
 
         # Forward
-        masks, _, _ = self.sam_predictor.predict_torch(
-            point_coords=None,
-            point_labels=None,
-            boxes=transformed_boxes,
-            multimask_output=False,
-        )
-        masks = masks.squeeze(1).cpu().numpy().astype(np.uint8)
+        H, W = offsets[2:] - offsets[:2]
+        if self.sam_version=='sam1':
+            # Normalize box to [0, 1]
+            input_box = torch.from_numpy(input_box / max(H, W))
+            # [y x y x] --> [x y x y] in [0, 1024]
+            transformed_boxes = torch.tensor([[input_box[1], input_box[0], input_box[3], input_box[2]]], device=self.device) * 1024
+            # print('transformed_boxes', transformed_boxes)
+            masks, _, _ = self.sam_predictor.predict_torch(
+                point_coords=None,
+                point_labels=None,
+                boxes=transformed_boxes,
+                multimask_output=False,
+            )
+            # print('masks.shape', masks.shape)
+            masks = masks.squeeze(1).cpu().numpy()
+            # print(masks.min(), masks.max(), masks.dtype)
+            masks = masks.astype(np.uint8)
+        elif self.sam_version=='sam2':
+            # [y x y x] --> [x y x y] unnormalized
+            transformed_boxes = np.array([[input_box[1], input_box[0], input_box[3], input_box[2]]])
+            masks, scs, _ = self.sam_predictor.predict(
+                point_coords=None,
+                point_labels=None,
+                box=transformed_boxes,
+                multimask_output=False,
+            )
+            masks = (masks > 0.5).astype(np.uint8)
         assert np.all(masks.shape[-2:] == np.array([H, W], dtype=int)), f'{masks.shape}, {H}, {W}'
         assert masks.shape[0] == 1, masks.shape
         mask = masks[0]
@@ -152,14 +184,25 @@ class GroundTruthSAM():
 
     def forward_one_patch(self, patch, offset_x, offset_y, predict_masks=None, min_diameter=None):
         H, W = patch.shape[:2]
+        # print(patch.min(), patch.max(), patch.shape, patch.dtype)
         with torch.inference_mode():
             self.sam_predictor.set_image(patch)
-            image_embedding = {
-                'original_size': self.sam_predictor.original_size,
-                'input_size': self.sam_predictor.input_size,
-                'features': self.sam_predictor.features,
-                'is_image_set': True,
-            }
+            if self.sam_version=='sam1':
+                image_embedding = {
+                    'original_size': self.sam_predictor.original_size,
+                    'input_size': self.sam_predictor.input_size,
+                    'features': self.sam_predictor.features,
+                    'is_image_set': True,
+                }
+            elif self.sam_version=='sam2':
+                image_embedding = {
+                    '_orig_hw': self.sam_predictor._orig_hw,  # Original size of the image
+                    '_is_batch': self.sam_predictor._is_batch,        # Flag indicating if batch or not
+                    '_features': self.sam_predictor._features,            # Features extracted from the image
+                    '_is_image_set': True,                      # Flag indicating the image has been set
+                    'mask_threshold': self.sam_predictor.mask_threshold
+                }
+                # print('computed image_embedding', image_embedding)
         self.image_embeddings.append(image_embedding)
         self.embed_offsets.append(np.array([offset_y, offset_x, offset_y + H, offset_x + W]))
 
