@@ -74,14 +74,14 @@ class GroundTruthSAM():
                                                  self.box_noise_bias, 
                                                  self.box_noise_bias]], dtype=boxes.dtype)
         
-        # Ensure box is within image range
-        noisy_boxes = np.clip(noisy_boxes, 0, np.array([[H, W, H, W]]))  
-        
         # Ensure noisy min values are smaller than noisy max values of the box coordinates
         noisy_boxes = np.concatenate([
             np.minimum(noisy_boxes[:, :2], noisy_boxes[:, 2:]-1),
             np.maximum(noisy_boxes[:, :2]+1, noisy_boxes[:, 2:]),
         ], axis=1)
+        
+        # Ensure box is within image range
+        noisy_boxes = np.clip(noisy_boxes, 0, np.array([[H-1, W-1, H-1, W-1]]))  
         return scores, noisy_boxes
 
     def predict_mask(self, box):
@@ -100,7 +100,7 @@ class GroundTruthSAM():
                 contains_box.append(False)
         
         if not np.any(contains_box):
-            raise RuntimeError('SAM-based mask prediction failed because there is no patch embedding which fully covers the provided box area.')
+            raise RuntimeError(f'SAM-based mask prediction failed because there is no patch embedding which fully covers the box {box}.')
         
         embed_index = contains_box.index(True)
         image_embedding = self.image_embeddings[embed_index]

@@ -15,6 +15,7 @@ import os
 
 import models.FasterRCNN_model
 import models.detection_head_model
+import models.image_datamodule
 
 # --train_dir="" --val_dir="" --sub_name="SAM_large"
 def get_args_parser():
@@ -23,19 +24,29 @@ def get_args_parser():
     # Directories for training and validation datasets
     parser.add_argument('--train_dirs', type=str, nargs='+', required=True, help='List of directories containing the training dataset.')
     parser.add_argument('--val_dirs', type=str, nargs='+', required=True, help='List of directories containing the validation dataset.')
-    parser.add_argument('--encoder_name', type=str, required=True, help='Encoder used for calculating embeddings: '
-                        '["SAM_base", "MedSAM", "CellSAM", "SAM_large", "MicroSAM_huge", "SAM2_large"]')
-    parser.add_argument('--decoder_arch', type=str, required=True, help='Decoder architecture which predicts boxes and scores: '
-                        '["FRCNN" (Faster R-CNN), "FRCNN_emb" (Faster R-CNN based on embeddings), "DETR_frcnn" (DETr based on Faster R-CNN backbone), "DETR_emb" (DETr based on embeddings)]')
+    parser.add_argument('--decoder', type=str, required=True, help='Decoder architecture which predicts boxes and scores: '
+                        '["FRCNN" (Faster R-CNN), "FRCNNv2" (Faster R-CNN v2), "DETR" (DETR transformer decoder), "SSD" (SSD decoder)]')
+    parser.add_argument('--backbone', type=str, required=True, help="""
+                            Backbone which computes embeddings used as decoder input: [
+                                "SSD" (SSD backbone), 
+                                "FRCNN" (Faster R-CNN ResNet incl. FPN), 
+                                "FRCNNv2", 
+                                "DETR" (DETR backbone),
+                                "SAM_large" (SAM large ViT), 
+                                "SAM2_large" (SAM2 large ViT),
+                                "Cellpose" (Cellpose features ???),
+                                "FM_concat" (SAM + SAM2 + Cellpose features concatenated),
+                            ]
+                        """)
     parser.add_argument('--batch_size', type=int, default=4, help='Number of samples in each batch.')
     parser.add_argument('--batches_per_epoch', type=int, default=500, help='Define how many batches are used during training of each epoch.'
                         ' The data is then sampled by a RandomSample instead of using shuffle in the data loader')
     parser.add_argument('--use_sampler', action='store_true', help='If true the model is trained with a fixed size of batches per epoch'
                         'instead of using possibly all data in the datset each epoch. Is useful if you want to train models on multiple datasets and compare them.')
-    parser.add_argument('--balance_datasets', action='store_true', help='If true the different datasets (OrgaSegment, OrganoID, ...) will be equally likely sampled during training and validation.')
-    parser.add_argument('--balance_validation', action='store_true', help='If true the different datasets (OrgaSegment, OrganoID, ...) will be equally likely sampled during training and validation.')
+    parser.add_argument('--max_oversampling', type=float, default=10.0, help='Limits how often training samples may be drawn compared to no group-based sampling. If other groups are undersampled, the difference in sampling frequency might be larger.')
+    parser.add_argument('--n_validation_samples', type=int, default=10, help='If > 0, only evaluates this amount of validation samples from each val set during training.')
     
-    parser.add_argument('--balance_newdata', type=float, default=0.05, help='balances the likelyhood of including a sample from our new data during training.')
+    # parser.add_argument('--balance_newdata', type=float, default=0.05, help='balances the likelyhood of including a sample from our new data during training.')
 
     # Learning rate and optimizer parameters
     parser.add_argument('--learning_rate', type=float, default=1e-4, help='Learning rate for the optimizer.')
@@ -50,8 +61,8 @@ def get_args_parser():
     parser.add_argument('--set_cost_giou', default=2, type=float, help="GIoU box coefficient in the matching cost.")
 
     # Loss coefficients for computing the loss
-    parser.add_argument('--loss', type=str, required=True, help='Loss: '
-                        '["DETR", "FRCNN"]')
+    # parser.add_argument('--loss', type=str, required=True, help='Loss: '
+    #                     '["DETR", "FRCNN"]')
     parser.add_argument('--bbox_loss_coef', default=5, type=float, help="Coefficient for bounding box loss.")
     parser.add_argument('--giou_loss_coef', default=2, type=float, help="Coefficient for GIoU loss.")
     parser.add_argument('--eos_coef', default=0.1, type=float, help="Relative classification weight of the no-object class.")
@@ -82,24 +93,45 @@ def get_args_parser():
 
 
 
-def initialize_model(args):
-    if args.decoder_arch == "DETR_emb":
+def initialize_model_and_dataset(args):
+    if args.backbone == "DETR":
         backbone = torch.nn.Identity()
-        decoder = models.detection_head_model.DetectionTransformer(backbone=backbone, **args)
-        model = models.detection_head_model.TrainingModule(model=decoder, **args)
-    elif args.decoder_arch == "DETR_frcnn":
-        model = models.detection_head_model.DetectionHead(**args)
-    elif args.decoder_arch == "FRCNN":
-        model = models.FasterRCNN_model.FasterRCNN_model(**args)
-    elif args.decoder_arch == "FRCNN_emb":
-        model = models.FasterRCNN_model.FasterRCNN_model(**args)
+        datamodule = models.image_datamodule.ImageDataModule(args)
+    elif args.backbone == "FRCNN":
+        datamodule = models.image_datamodule.ImageDataModule(args)
+    elif args.backbone == "FRCNNv2":
+        datamodule = models.image_datamodule.ImageDataModule(args)
+    elif args.backbone == "SSD":
+        datamodule = models.image_datamodule.ImageDataModule(args)
+    elif args.backbone == "SAM_large":
+        backbone = torch.nn.Identity()  # Replace with adaptor layers
+        raise NotImplementedError()
+    elif args.backbone == "SAM2_large":
+        raise NotImplementedError()
+    elif args.backbone == "Cellpose":
+        raise NotImplementedError()
+    elif args.backbone == "FM_concat":
+        raise NotImplementedError()
     else:
-        raise ValueError(f'args.decoder_arch: {args.decoder_arch} is invalid / not supported.')
-    return model
+        raise ValueError(f'args.backbone: {args.backbone} is invalid / not supported.')
+    
 
-
-
-
+    if args.decoder == "DETR":
+        decoder = models.detection_head_model.DetectionTransformer(backbone=backbone, **args)
+    elif args.decoder == "FRCNN":
+        # model = models.detection_head_model.DetectionHead(**args)
+        raise NotImplementedError()
+    elif args.decoder == "FRCNNv2":
+        # model = models.FasterRCNN_model.FasterRCNN_model(**args)
+        raise NotImplementedError()
+    elif args.decoder == "SSD":
+        # model = models.FasterRCNN_model.FasterRCNN_model(**args)
+        raise NotImplementedError()
+    else:
+        raise ValueError(f'args.decoder: {args.decoder} is invalid / not supported.')
+    
+    model = models.detection_head_model.TrainingModule(model=decoder, **args)
+    return datamodule, model
 
 
 

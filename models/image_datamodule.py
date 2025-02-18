@@ -1,4 +1,8 @@
 import os
+import sys
+import PIL
+import PIL.Image
+import cv2
 import numpy as np
 from tqdm import tqdm
 from typing import Literal, List
@@ -12,299 +16,63 @@ import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SubsetRandomSampler, WeightedRandomSampler
 from torchvision.models.detection.faster_rcnn import FasterRCNN_ResNet50_FPN_V2_Weights, FasterRCNN_ResNet50_FPN_Weights
+from torchvision.models.detection.ssd import SSD300_VGG16_Weights
 from monai import transforms as tfs
 
 from util import box_ops_numpy
 
+path_detr = '/home/icb/lion.gleiter/projects/organoid_sam/detr'
+if path_detr not in sys.path:
+    sys.path.append(path_detr)
+from detr.datasets import coco
 
-def compute_weights_new_data_only(dataset, factor_new_data, factor_neurips=1, factor_OI=1, factor_empty_patches=0.01):
+
+def compute_weights(metadata: pd.DataFrame, groups, max_oversampling = 10.0):
     """
-    Compute per-sample weights for a dataset, prioritizing certain subsets of data.
+    Compute per-sample weights for a dataset, balancing multiple subgroups of data.
 
-    This function calculates weights for samples in a dataset based on their origin (e.g., NewData, NeurIPS, open_images),
-    and whether they correspond to empty or non-empty patches. The weights are adjusted using the specified factors for
-    each subset and empty patches, ensuring proper balancing for training.
+    The subgroups are determined as unique value combinations of the variables in 'groups', e.g.
+    if groups = ['dataset', 'patch_size'], then data from NeurIPS_train with patchsize 2048 would 
+    be sampled equally often as data from OrgaSegment_train with patchsize 512.
 
     Args:
-        dataset (Dataset): 
-            The dataset object, which must have the attributes:
-                - `image_files` (list of str): List of file paths for the dataset samples.
-                - `is_empty` (list of bool): Boolean array indicating whether a sample is an empty patch.
-        factor_new_data (float): 
-            Scaling factor for weighting the "NewData" samples. Higher values increase their importance.
-        factor_neurips (float, optional): 
-            Scaling factor for weighting the "NeurIPS" samples. Defaults to 1.
-        factor_OI (float, optional): 
-            Scaling factor for weighting the "open_images" samples. Defaults to 1.
-        factor_empty_patches (float, optional): 
-            Proportion of weight assigned to empty patches versus non-empty patches within a subset.
-            Defaults to 0.01.
+        metadata (pd.DataFrame): 
+            Contains the following columns, and each row is one available datapoint: ('dataset', 'n_objects', 'n_objects_grouped', 'patch_size')
+        groups (list[str] | None): 
+            Keys for determining unique groups for weighting. 'None' means equal weight for all datapoints.
+        max_oversampling (float):
+            Specifies how much any sample weight may be maximally increased compared to the default weight.
 
     Returns:
         np.ndarray: 
-            A NumPy array of weights for each sample in the dataset. The weights are normalized per subset 
-            and adjusted based on the specified scaling factors and empty-patch proportion.
-
-    Notes:
-        - The function reduces the weight of empty patches proportionally using `factor_empty_patches`.
-        - The dataset is divided into subsets based on their source (`NewData`, `NeurIPS`, `open_images`, or others),
-          and each subset's weights are scaled using the corresponding factors.
-        - If a sample belongs to multiple subsets (though unlikely given the dataset structure), the highest weight is retained.
-        - The weights are normalized within each subset before being combined.
-
-    Example:
-        >>> weights = compute_weights_new_data_only(
-        ...     dataset=my_dataset,
-        ...     factor_new_data=2.0,
-        ...     factor_neurips=1.5,
-        ...     factor_OI=0.5,
-        ...     factor_empty_patches=0.05
-        ... )
-    """
-
-    print("start compute weights new data only")
-    w = np.zeros(len(dataset), dtype=float)
-
-    # Reduce weight of empty patches:
-    is_empty = deepcopy(dataset.is_empty)
-
-    print_ids = []
-    print_id_datasets = []
-    print_id_empty = []
-    # Reweight each dataset
-    for ds_name in [
-        'NewData',
-        'NeurIPS',
-        'open_images',
-        None, # All others
-    ]:
-        has_printed = False
-        has_printed_empty = False
-        if ds_name is not None:
-            _w_not_empty = np.zeros_like(w)
-            _w_empty = np.zeros_like(w)
-            for i, img_path in tqdm(enumerate(dataset.image_files)):
-                if ds_name in str(img_path):
-                    if is_empty[i]:
-                        _w_empty[i] = 1.0
-                        if not has_printed_empty:
-                            print_ids.append(i)
-                            print_id_empty.append(True)
-                            print_id_datasets.append(ds_name)
-                            has_printed_empty = True
-                    else:
-                        _w_not_empty[i] = 1.0
-                        if not has_printed:
-                            print_ids.append(i)
-                            print_id_empty.append(False)
-                            print_id_datasets.append(ds_name)
-                            has_printed = True
-                    assert w[i] < 1e-16, img_path
-        else:
-            _w_not_empty = np.zeros_like(w)
-            _w_empty = np.zeros_like(w)
-            for i, img_path in tqdm(enumerate(dataset.image_files)):
-                if ('NewData' in str(img_path)) or ('NeurIPS' in str(img_path)) or ('open_images' in str(img_path)):
-                    continue
-                else:
-                    if is_empty[i]:
-                        _w_empty[i] = 1.0
-                        if not has_printed_empty:
-                            print_ids.append(i)
-                            print_id_empty.append(True)
-                            print_id_datasets.append('other')
-                            has_printed_empty = True
-                    else:
-                        _w_not_empty[i] = 1.0
-                        if not has_printed:
-                            print_ids.append(i)
-                            print_id_empty.append(False)
-                            print_id_datasets.append('other')
-                            has_printed = True
-                    assert w[i] < 1e-16, img_path
-
-        
-        if _w_not_empty.sum() >= 1:
-            _w_not_empty = (_w_not_empty / _w_not_empty.sum()) * (1.0 - factor_empty_patches)
-        if _w_empty.sum() >= 1:
-            _w_empty = (_w_empty / _w_empty.sum()) * factor_empty_patches
-
-        # _w_empty and _w_not_empty sum up together to probability 1. Now reweigh depending on dataset
-
-        if ds_name is None:
-            _w_empty *= (1.0 - factor_new_data)
-            _w_not_empty *= (1.0 - factor_new_data)
-        elif ds_name=='NewData':
-            _w_empty *= factor_new_data
-            _w_not_empty *= factor_new_data
-        elif ds_name=='NeurIPS':
-            _w_empty *= factor_neurips
-            _w_not_empty *= factor_neurips
-        elif ds_name=='open_images':
-            _w_empty *= factor_OI
-            _w_not_empty *= factor_OI
-        else:
-            raise RuntimeError(ds_name)
-        
-        w = np.maximum(w, _w_empty)
-        w = np.maximum(w, _w_not_empty)
-
-    print("done compute weights new data only")
-    for i, ds_name, empty in zip(print_ids, print_id_datasets, print_id_empty):
-        print('weight', w[i], ds_name, empty)
-
-    return np.maximum(w, 0.0)
-
-
-def compute_weights(dataset, factor_neurips=7, factor_OI=7, factor_empty_patches=0.01):
-    """
-    Compute per-sample weights for a dataset, balancing multiple subsets of data.
-
-    This function calculates weights for samples in a dataset based on their origin (e.g., OrganoID, NeurIPS, open_images, etc.)
-    and whether they are empty patches. It adjusts the weights using the specified scaling factors for subsets and the proportion
-    of weight assigned to empty patches, ensuring proper balancing for training.
-
-    Args:
-        dataset (Dataset): 
-            The dataset object, which must have the attributes:
-                - `image_files` (list of str): List of file paths for the dataset samples.
-                - `is_empty` (list of bool): Boolean array indicating whether a sample is an empty patch.
-        factor_neurips (float, optional): 
-            Scaling factor for weighting the "NeurIPS" samples. Defaults to 7.
-        factor_OI (float, optional): 
-            Scaling factor for weighting the "open_images" samples. Defaults to 7.
-        factor_empty_patches (float, optional): 
-            Proportion of weight assigned to empty patches versus non-empty patches within a subset.
-            Defaults to 0.01.
-
-    Returns:
-        np.ndarray: 
-            A NumPy array of weights for each sample in the dataset. The weights are normalized within each subset
-            and adjusted based on the specified scaling factors and empty-patch proportion.
-
-    Notes:
-        - The function reduces the weight of empty patches proportionally using `factor_empty_patches`.
-        - The dataset is divided into subsets based on predefined dataset names (e.g., OrganoID, OrgaSegment, etc.), 
-          with weights adjusted for each subset using the corresponding scaling factors.
-        - Samples not matching any predefined subset are categorized as "other" and assigned default weights.
-        - If a sample belongs to multiple subsets (unlikely given the dataset structure), the highest weight is retained.
-        - The weights are normalized within each subset before being combined, ensuring they sum to 1.
-
-    Example:
-        >>> weights = compute_weights(
-        ...     dataset=my_dataset,
-        ...     factor_neurips=5.0,
-        ...     factor_OI=3.0,
-        ...     factor_empty_patches=0.05
-        ... )
+            A NumPy array of weights for each sample in the dataset. The weights are normalized within each subset.
     """
     print("start compute weights")
-    w = np.zeros(len(dataset), dtype=float)
+    total_length = len(metadata)
+    max_weight = max_oversampling / total_length
 
-    # Reduce weight of empty patches:
-    is_empty = deepcopy(dataset.is_empty)
+    # Initialize with equal weight for all points.
+    w = np.ones(len(metadata), dtype=float) / total_length
 
+    if groups is None:
+        return w
 
-    print_ids = []
-    print_id_datasets = []
-    print_id_empty = []
-    # Reweight each dataset
-    for ds_name in [
-        'OrganoID',
-        'OrgaSegment',
-        'OrgaQuant',
-        'OrgaExtractor',
-        'Tellu',
-        'MultiOrg',
-        'NewData',
-        'NeurIPS',
-        'open_images',
-        None, # All others
-    ]:
-        has_printed = False
-        has_printed_empty = False
+    # Each group gets the same total weight and distributes it equally between its members.
+    grouped_metadata = metadata.groupby(groups, as_index=False)
+    n_groups = len(grouped_metadata)
+    total_weight_per_group = 1.0 / n_groups
 
-        if ds_name is not None:
-            _w_not_empty = np.zeros_like(w)
-            _w_empty = np.zeros_like(w)
-            for i, img_path in tqdm(enumerate(dataset.image_files)):
-                if ds_name in str(img_path):
-                    if is_empty[i]:
-                        _w_empty[i] = 1.0
+    for name, df in grouped_metadata:
+        weight = total_weight_per_group / len(df)
+        ids = df[['idx']].values.tolist()
+        w[ids] = weight
+        print('w', w)
+        print(name, 'weight', weight)
 
-                        if not has_printed_empty:
-                            print_ids.append(i)
-                            print_id_empty.append(True)
-                            print_id_datasets.append(ds_name)
-                            has_printed_empty = True
+    # Enforce max weight:
+    w = np.minimum(w, max_weight)
 
-                    else:
-                        _w_not_empty[i] = 1.0
-                        if not has_printed:
-                            print_ids.append(i)
-                            print_id_empty.append(False)
-                            print_id_datasets.append(ds_name)
-                            has_printed = True
-                    assert w[i] < 1e-16, img_path
-        else:
-            _w_not_empty = np.zeros_like(w)
-            _w_empty = np.zeros_like(w)
-            for i, img_path in tqdm(enumerate(dataset.image_files)):
-                if ('OrganoID' in str(img_path)) or \
-                    ('OrgaSegment' in str(img_path)) or \
-                    ('OrgaQuant' in str(img_path)) or \
-                    ('OrgaExtractor' in str(img_path)) or \
-                    ('Tellu' in str(img_path)) or \
-                    ('MultiOrg' in str(img_path)) or \
-                    ('NewData' in str(img_path)) or \
-                    ('NeurIPS' in str(img_path)) or \
-                    ('open_images' in str(img_path)):
-                    continue
-                else:
-                    if is_empty[i]:
-                        _w_empty[i] = 1.0
-                        if not has_printed_empty:
-                            print_ids.append(i)
-                            print_id_empty.append(True)
-                            print_id_datasets.append('other')
-                            has_printed_empty = True
-                    else:
-                        _w_not_empty[i] = 1.0
-                        if not has_printed:
-                            print_ids.append(i)
-                            print_id_empty.append(False)
-                            print_id_datasets.append('other')
-                            has_printed = True
-                    assert w[i] < 1e-16, img_path
-
-        
-        if _w_not_empty.sum() >= 1:
-            _w_not_empty = (_w_not_empty / _w_not_empty.sum()) * (1.0 - factor_empty_patches)
-        if _w_empty.sum() >= 1:
-            _w_empty = (_w_empty / _w_empty.sum()) * factor_empty_patches
-
-        # _w_empty and _w_not_empty sum up together to probability 1. Now reweigh depending on dataset
-
-        if ds_name is None:
-            _w_empty *= 1.0
-            _w_not_empty *= 1.0
-        elif ds_name=='NeurIPS':
-            _w_empty *= factor_neurips
-            _w_not_empty *= factor_neurips
-        elif ds_name=='open_images':
-            _w_empty *= factor_OI
-            _w_not_empty *= factor_OI
-        else:
-            _w_empty *= 1.0
-            _w_not_empty *= 1.0
-        
-        w = np.maximum(w, _w_empty)
-        w = np.maximum(w, _w_not_empty)
-
-    print("done compute weights")
-    for i, ds_name, empty in zip(print_ids, print_id_datasets, print_id_empty):
-        print('weight', w[i], ds_name, empty)
-    return np.maximum(w, 0.0)
+    return w
 
 
 def collate_fn(batch):
@@ -427,40 +195,105 @@ class Augmentation():
         return img, boxes
 
 
+
+def prepare_coco_targets(image: PIL.Image, target):
+        w, h = image.size
+
+        image_id = target["image_id"]
+        image_id = torch.tensor([image_id])
+
+        anno = target["annotations"]
+
+        anno = [obj for obj in anno if 'iscrowd' not in obj or obj['iscrowd'] == 0]
+
+        boxes = [obj["bbox"] for obj in anno]
+        # guard against no boxes via resizing
+        boxes = torch.as_tensor(boxes, dtype=torch.float32).reshape(-1, 4)
+        boxes[:, 2:] += boxes[:, :2]
+        boxes[:, 0::2].clamp_(min=0, max=w)
+        boxes[:, 1::2].clamp_(min=0, max=h)
+
+        classes = [obj["category_id"] for obj in anno]
+        classes = torch.tensor(classes, dtype=torch.int64)
+
+        keypoints = None
+        if anno and "keypoints" in anno[0]:
+            keypoints = [obj["keypoints"] for obj in anno]
+            keypoints = torch.as_tensor(keypoints, dtype=torch.float32)
+            num_keypoints = keypoints.shape[0]
+            if num_keypoints:
+                keypoints = keypoints.view(num_keypoints, -1, 3)
+
+        keep = (boxes[:, 3] > boxes[:, 1]) & (boxes[:, 2] > boxes[:, 0])
+        boxes = boxes[keep]
+        classes = classes[keep]
+        if keypoints is not None:
+            keypoints = keypoints[keep]
+
+        target = {}
+        target["boxes"] = boxes
+        target["labels"] = classes
+        target["image_id"] = image_id
+        if keypoints is not None:
+            target["keypoints"] = keypoints
+
+        # for conversion to coco api
+        area = torch.tensor([obj["area"] for obj in anno])
+        iscrowd = torch.tensor([obj["iscrowd"] if "iscrowd" in obj else 0 for obj in anno])
+        target["area"] = area[keep]
+        target["iscrowd"] = iscrowd[keep]
+
+        target["orig_size"] = torch.as_tensor([int(h), int(w)])
+        target["size"] = torch.as_tensor([int(h), int(w)])
+
+        return image, target
+
+
+
 class ImageDataset(Dataset):
     def __init__(self, 
+                 data_split: Literal["train", "test", "val"], 
                  data_split_dirs: List[str],
-                 data_split: Literal["train", "test", "val"] = "train", 
-                 base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale",
+                 base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale_miccai",
                  augmentation: bool = True,
                  min_overlap: float = 0.99, # 0.9,
-                 min_box_side: float = 0.02,
+                 min_box_side: float = 0.0,
                  version_FasterRCNN: Literal["v1", "v2"]="v2",
-                 decoder_arch: Literal["FRCNN", "DETR_frcnn"] = "FRCNN", 
+                 backbone: Literal["FRCNN", "FRCNNv2", "SSD", "DETR"] = "FRCNN", 
                  **kwargs):
         super().__init__()
+        self.base_dir = Path(base_dir)
+        self.metadata = []  # idx, dataset, n_objects, n_objects_grouped, patch_size
         
         # Dataset parameters
         self.data_split = data_split
-        self.data_split_dirs = data_split_dirs
-        self.base_dir = Path(base_dir)
+        self.data_dirs = data_split_dirs
+        self.use_coco_format = True if backbone=='DETR' else False
         
         # Pretrained transformer model parameters
-        self.encoder_name = encoder_name
-        self.num_queries = num_queries
+        self.backbone = backbone
         
         # Set parameters for filtering out objects that are too small or that do not have enough overlap with the image.
         self.min_overlap = min_overlap
         self.min_box_side = min_box_side
 
         # Set model for detection
-
-        if version_FasterRCNN == "v2":
-            self.transforms = FasterRCNN_ResNet50_FPN_V2_Weights.COCO_V1.transforms()
-        elif version_FasterRCNN == "v1":
+        self.transforms = None
+        if self.backbone == 'FRCNN':
+            if version_FasterRCNN != "v1":
+                raise RuntimeError('backbone FRCNN is not supported with version_FasterRCNN != "v1"')
             self.transforms = FasterRCNN_ResNet50_FPN_Weights.COCO_V1.transforms()
+        elif self.backbone == 'FRCNNv2':
+            if version_FasterRCNN != "v2":
+                raise RuntimeError('backbone FRCNNv2 is not supported with version_FasterRCNN != "v2"')
+            self.transforms = FasterRCNN_ResNet50_FPN_V2_Weights.COCO_V1.transforms()
+        elif self.backbone == 'SSD':
+            self.transforms = SSD300_VGG16_Weights.COCO_V1.transforms()
+        elif self.backbone == 'DETR':
+            self.prepare = coco.ConvertCocoPolysToMask(False)
+            self.transforms = coco.make_coco_transforms('train' if self.data_split=='train' else 'val')
         else: 
-            raise ValueError(f"version_FasterRCNN has to be 'v1' or 'v2', it is however {version_FasterRCNN}")
+            raise ValueError(f"backbone {self.backbone} is not supported.")
 
         # Set if data augmentations are activated
         if augmentation:
@@ -515,6 +348,29 @@ class ImageDataset(Dataset):
             assert img_path_cleaned == label_path_cleaned, f"Filename mismatch: {img_file} and {label_file} are not the right img_patch and gt_label pair!"
 
 
+
+        # Add metadata for non open-images data:
+        current_count_file = None
+        current_count_data = None
+        for i, img_file in tqdm(enumerate(self.image_files)):
+            dataset = img_file.parent.parent.name
+            patch_number = int(img_file.stem.replace('patch_', ''))
+            if self.data_split is not 'test':
+                patch_size = int(img_file.parent.name.split('_')[-1])
+            else:
+                patch_size = None
+            if (current_count_data is None) or (current_count_file is None):
+                current_count_file = bbox_gt_dir / dataset / img_file.parent.name / 'box_counts.npy'
+                current_count_data = np.load(current_count_file, allow_pickle=False)
+            elif current_count_file != bbox_gt_dir / dataset / img_file.parent.name / 'box_counts.npy':
+                current_count_file = bbox_gt_dir / dataset / img_file.parent.name / 'box_counts.npy'
+                current_count_data = np.load(current_count_file, allow_pickle=False)
+            object_count = current_count_data[patch_number]
+            object_count_category = int(np.ceil(object_count / 10.0 - 0.05)) * 10  # 0 for 0 objects, 10 for 1-10 objects, 20 for 11-20 objects, ...
+
+            self.metadata.append([i, dataset, object_count, object_count_category, patch_size])
+
+
         # Appends Open Images file paths to self.image_files but not to self.label_files
         for oi_path in open_image_dirs:
             path = Path('/ictstr01/groups/shared/users/lion.gleiter') / oi_path / 'validation'
@@ -522,12 +378,12 @@ class ImageDataset(Dataset):
 
         self.oi_annotation = pd.read_csv('/ictstr01/groups/shared/users/lion.gleiter/open_images_v4_5/original_data/validation-annotations-bbox.csv')
 
-        # Creates a boolean vector indicating which images have 0 bbox annotations.
-        self.is_empty = np.zeros(len(self.image_files), dtype=bool)
-        for i, label_path in tqdm(enumerate(self.label_files)):
-            targets = np.load(label_path)
-            if targets.shape[0] == 0:
-                self.is_empty[i] = True
+        # Update metadata.
+        # self.is_empty = np.zeros(len(self.image_files), dtype=bool)
+        for i in range(start=len(self.metadata), stop=len(self.image_files)):
+            self.metadata.append([i, 'open_images', 1000, 1000, 1000]) # dummy values to create a separate group.
+
+        self.metadata = pd.DataFrame(data=self.metadata, columns=['idx', 'dataset', 'n_objects', 'n_objects_grouped', 'patch_size'])
 
     def __len__(self):
         return len(self.image_files)
@@ -535,9 +391,13 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         # Load image
         image_path = self.image_files[idx]
-        image = Image.open(image_path).convert('RGB')
-        image = self.transforms(image)
-        H, W = image.shape[-2:]
+        if self.backbone == 'DETR':
+            image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+            H, W = image.shape[:2]
+        else:
+            image = Image.open(image_path).convert('RGB')
+            image = self.transforms(image)
+            H, W = image.shape[-2:]
         # print('image in __getitem__', image)
         # print('image.shape', image.shape)
         # image = image.squeeze(0)  # .permute(1, 2, 0).cpu().numpy()
@@ -575,23 +435,43 @@ class ImageDataset(Dataset):
         targets = box_ops_numpy.cxcywh_to_xyxy(targets) * max(H, W)
         targets = np.stack((targets[:, 1], targets[:, 0], targets[:, 3], targets[:, 2]), axis=1)
 
+        # DETR
+        if self.backbone == 'DETR':
+            targets = np.concatenate([targets[:, :2], targets[:, 2:] - targets[:, :2]], axis=1)
+            annotations = {
+                'image_id': idx,
+                'annotations': [
+                    {
+                        'bbox': box,
+                        'is_crowd': False,
+                        'area': box[2] * box[3],
+                        'category_id': 0,  # Label
+                    } for box in targets
+                ]
+            }
+            targets = self.prepare(PIL.Image.fromarray(image), annotations)
+            image, targets = self.transforms(image, targets)
+            return image, targets
+
         # Augmentation (targets are [x, y, x, y] in px)
         if self.augmentation is not None:
             image, targets = self.augmentation(image, targets)
 
-        # Pad targets to ensure they are of shape (num_queries, 4)
-        # num_boxes = targets.shape[0]
-        # if num_boxes < self.num_queries:
-        #     pad_size = self.num_queries - num_boxes
-        #     padded_targets = np.pad(targets, ((0, pad_size), (0, 0)), mode='constant', constant_values=0)
-        # else:
-        #     padded_targets = targets[:self.num_queries]
-
-        # Convert to torch tensors
-        # image = torch.tensor(image, dtype=torch.float32)
         targets = torch.tensor(targets, dtype=torch.float32)
         labels = torch.ones((targets.shape[0],), dtype=torch.int64)
-        
+        image_id = torch.tensor([idx])
+        area = (targets[:, 3] - targets[:, 1]) * (targets[:, 2] - targets[:, 0])
+        is_crowd = torch.zeros((targets.shape[0],), dtype=torch.bool)
+        orig_size = torch.as_tensor([int(H), int(W)])
+        size = torch.as_tensor([int(H), int(W)])
+
+        targets_out = {'boxes': targets, 
+                       'labels': labels, 
+                       'image_id': image_id, 
+                       'area': area, 
+                       'is_crowd': is_crowd, 
+                       'orig_size': orig_size, 
+                       'size': size}        
 
         # # Prints from which dataset we sampled and its sampling weight for debugging 
         # w = compute_weights_new_data_only(self, factor_new_data=0.2)
@@ -609,38 +489,27 @@ class ImageDataset(Dataset):
         #     if ds_name in str(image_path):
         #         print('idx:', idx, "ds", ds_name, 'weight', w[idx], num_boxes)
         
-        return image, {'boxes': targets, 'labels': labels}
+        return image, targets_out
 
 
-class DataModule(pl.LightningDataModule):
+class ImageDataModule(pl.LightningDataModule):
     def __init__(self, 
                  train_dir_names: List[str],
                  val_dir_names: List[str],
-                 encoder_name: Literal["SAM_base", "MedSAM", "CellSAM", 
-                                       "SAM_large", "MicroSAM_huge", "SAM2_large"] = "SAM_base",
                  batch_size: int = 32, 
-                 num_queries: int = 300,
-                 batches_per_epoch: int = 411,
+                 batches_per_epoch: int = 400,
                  use_sampler: bool = False,
-                 balance_datasets: bool = False,
-                 balance_validation: bool = False,
-                 balance_newdata: float = 0.05,
-                 version_FasterRCNN: Literal["v1", "v2"]="v2"
-                 ):
+                 sampling_groups = None,
+                 max_oversampling: float = 10.0,
+                 n_validation_samples: int | None = 10,
+                 **kwargs):
         super().__init__()
         self.n_workers = int(os.environ.get('SLURM_CPUS_PER_TASK', 0)) - 1
-        # self.n_workers = 0
+        self.kwargs = kwargs
         
-        # Set directories 
+        # Data directories 
         self.train_dir_names = train_dir_names
         self.val_dir_names = val_dir_names
-
-        # Set detection Model
-        self.version_FasterRCNN = version_FasterRCNN
-
-        # Set pretrained transformer model
-        self.encoder_name = encoder_name
-        self.num_queries = num_queries
 
         # Set training parameters
         self.batch_size = batch_size
@@ -648,38 +517,26 @@ class DataModule(pl.LightningDataModule):
 
         # Set data loading parameters
         self.use_sampler = use_sampler
-        self.balance_datasets = balance_datasets
-        self.balance_newdata = balance_newdata
-        self.balance_validation = balance_validation
+        self.sampling_groups = sampling_groups
+        self.max_oversampling = max_oversampling
+        self.n_validation_samples = n_validation_samples
         
         
     def setup(self, stage: Literal["fit", "validate", None] = None):
         # Set datasets depending on the stage
         if stage == 'fit' or stage is None:
-            self.train_dataset = FasterRCNNDataset(
-                                            data_split_dirs=self.train_dir_names, 
-                                            data_split="train", 
-                                            encoder_name=self.encoder_name, 
-                                            num_queries=self.num_queries,
-                                            augmentation=True,
-                                            version_FasterRCNN=self.version_FasterRCNN)
-            
-            self.val_dataset = FasterRCNNDataset(
-                                            data_split_dirs=self.val_dir_names,
-                                            data_split="val", 
-                                            encoder_name=self.encoder_name, 
-                                            num_queries=self.num_queries,
-                                            augmentation=False,
-                                            version_FasterRCNN=self.version_FasterRCNN)
+            self.train_dataset = ImageDataset(data_split_dirs=self.train_dir_names, 
+                                              data_split="train", 
+                                              augmentation=True,
+                                              **self.kwargs)
         
-        if stage == 'validate' or stage is None:
-            self.val_dataset =  FasterRCNNDataset(
-                                            data_split_dirs=self.val_dir_names, 
-                                            data_split="val", 
-                                            encoder_name=self.encoder_name, 
-                                            num_queries=self.num_queries,
-                                            augmentation=False,
-                                            version_FasterRCNN=self.version_FasterRCNN)
+        if (stage == 'fit') or (stage == 'validate') or (stage is None):
+            self.val_datasets = [ImageDataset(
+                data_split_dirs=[val_dir_name],
+                data_split="val", 
+                augmentation=False,
+                **self.kwargs
+            ) for val_dir_name in self.val_dir_names]
 
 
     def train_dataloader(self):
@@ -690,29 +547,17 @@ class DataModule(pl.LightningDataModule):
         specified ratio.
         """
 
-        assert not (self.balance_datasets and (self.balance_newdata > -0.5))
+        # assert not (self.balance_datasets and (self.balance_newdata > -0.5))
         if self.use_sampler:
-            if self.balance_datasets:
-                w = compute_weights(self.train_dataset)
-                sampler = WeightedRandomSampler(
-                    weights=w,
-                    replacement=True,
-                    num_samples=self.batches_per_epoch * self.batch_size
-                )
-            elif self.balance_newdata > -0.5:
-                print('using self.balance_newdata', self.balance_newdata)
-                w = compute_weights_new_data_only(self.train_dataset, self.balance_newdata)
-                sampler = WeightedRandomSampler(
-                    weights=w,
-                    replacement=True,
-                    num_samples=self.batches_per_epoch * self.batch_size
-                )
-            else:
-                sampler = RandomSampler(
-                    data_source=self.train_dataset,
-                    replacement=True,
-                    num_samples=self.batches_per_epoch * self.batch_size
-                )
+            w = compute_weights(self.train_dataset.metadata, 
+                                self.sampling_groups,
+                                max_oversampling=self.max_oversampling)
+
+            sampler = WeightedRandomSampler(
+                weights=w,
+                replacement=True,
+                num_samples=self.batches_per_epoch * self.batch_size
+            )
 
             return DataLoader(self.train_dataset, 
                               batch_size=self.batch_size,
@@ -733,21 +578,19 @@ class DataModule(pl.LightningDataModule):
         Depending on the configuration, it may use a sampler for balanced sampling or 
         load the data in a standard sequential manner.
         """
-        if self.use_sampler and (self.balance_datasets or self.balance_validation):
-            w = compute_weights(self.val_dataset)
-            sampler = WeightedRandomSampler(
-                weights=w,
+        if (self.n_validation_samples is not None) and (self.n_validation_samples > 0):
+            sampler = RandomSampler(
                 replacement=True,
-                num_samples=self.batch_size * 20
+                num_samples=self.n_validation_samples
             )
-            return DataLoader(self.val_dataset, 
-                              batch_size=self.batch_size, 
-                              sampler=sampler, 
-                              num_workers=self.n_workers,
-                              collate_fn=collate_fn)
+            return [DataLoader(val_dataset, 
+                               batch_size=self.batch_size, 
+                               sampler=sampler, 
+                               num_workers=self.n_workers,
+                               collate_fn=collate_fn) for val_dataset in self.val_datasets]
         else: 
-            return DataLoader(self.val_dataset, 
-                              batch_size=self.batch_size, 
-                              num_workers=self.n_workers,
-                              collate_fn=collate_fn)
+            return [DataLoader(val_dataset, 
+                               batch_size=self.batch_size, 
+                               num_workers=self.n_workers,
+                               collate_fn=collate_fn) for val_dataset in self.val_datasets]
 
