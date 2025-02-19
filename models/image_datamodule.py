@@ -82,6 +82,8 @@ def collate_fn(batch):
     return images, targets
 
 
+# TODO: add backbone-specific padding to avoid padding artifacts during training. (always pad only the bottom and right, to avoid issues with bboxes.)
+
 class RandRotate90(tfs.RandomizableTransform):
     def __init__(self, prob = 1, do_transform = True, axes=(-2, -1)):
         super().__init__(prob, do_transform)
@@ -254,12 +256,11 @@ class ImageDataset(Dataset):
     def __init__(self, 
                  data_split: Literal["train", "test", "val"], 
                  data_split_dirs: List[str],
+                 backbone_name: Literal["FRCNN", "FRCNNv2", "SSD", "DETR", "DETR_own_implementation"], 
                  base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale_miccai",
                  augmentation: bool = True,
                  min_overlap: float = 0.99, # 0.9,
                  min_box_side: float = 0.0,
-                 version_FasterRCNN: Literal["v1", "v2"]="v2",
-                 backbone: Literal["FRCNN", "FRCNNv2", "SSD", "DETR"] = "FRCNN", 
                  **kwargs):
         super().__init__()
         self.base_dir = Path(base_dir)
@@ -268,10 +269,10 @@ class ImageDataset(Dataset):
         # Dataset parameters
         self.data_split = data_split
         self.data_dirs = data_split_dirs
-        self.use_coco_format = True if backbone=='DETR' else False
+        self.use_coco_format = True if backbone_name=='DETR' else False
         
         # Pretrained transformer model parameters
-        self.backbone = backbone
+        self.backbone = backbone_name
         
         # Set parameters for filtering out objects that are too small or that do not have enough overlap with the image.
         self.min_overlap = min_overlap
@@ -280,18 +281,16 @@ class ImageDataset(Dataset):
         # Set model for detection
         self.transforms = None
         if self.backbone == 'FRCNN':
-            if version_FasterRCNN != "v1":
-                raise RuntimeError('backbone FRCNN is not supported with version_FasterRCNN != "v1"')
             self.transforms = FasterRCNN_ResNet50_FPN_Weights.COCO_V1.transforms()
         elif self.backbone == 'FRCNNv2':
-            if version_FasterRCNN != "v2":
-                raise RuntimeError('backbone FRCNNv2 is not supported with version_FasterRCNN != "v2"')
             self.transforms = FasterRCNN_ResNet50_FPN_V2_Weights.COCO_V1.transforms()
         elif self.backbone == 'SSD':
             self.transforms = SSD300_VGG16_Weights.COCO_V1.transforms()
         elif self.backbone == 'DETR':
             self.prepare = coco.ConvertCocoPolysToMask(False)
             self.transforms = coco.make_coco_transforms('train' if self.data_split=='train' else 'val')
+        elif self.backbone == 'DETR_own_implementation':
+            self.transforms = FasterRCNN_ResNet50_FPN_Weights.COCO_V1.transforms()
         else: 
             raise ValueError(f"backbone {self.backbone} is not supported.")
 
@@ -355,7 +354,7 @@ class ImageDataset(Dataset):
         for i, img_file in tqdm(enumerate(self.image_files)):
             dataset = img_file.parent.parent.name
             patch_number = int(img_file.stem.replace('patch_', ''))
-            if self.data_split is not 'test':
+            if self.data_split != 'test':
                 patch_size = int(img_file.parent.name.split('_')[-1])
             else:
                 patch_size = None
@@ -380,7 +379,7 @@ class ImageDataset(Dataset):
 
         # Update metadata.
         # self.is_empty = np.zeros(len(self.image_files), dtype=bool)
-        for i in range(start=len(self.metadata), stop=len(self.image_files)):
+        for i in range(len(self.metadata), len(self.image_files)):
             self.metadata.append([i, 'open_images', 1000, 1000, 1000]) # dummy values to create a separate group.
 
         self.metadata = pd.DataFrame(data=self.metadata, columns=['idx', 'dataset', 'n_objects', 'n_objects_grouped', 'patch_size'])
@@ -494,22 +493,22 @@ class ImageDataset(Dataset):
 
 class ImageDataModule(pl.LightningDataModule):
     def __init__(self, 
-                 train_dir_names: List[str],
-                 val_dir_names: List[str],
-                 batch_size: int = 32, 
-                 batches_per_epoch: int = 400,
-                 use_sampler: bool = False,
-                 sampling_groups = None,
-                 max_oversampling: float = 10.0,
-                 n_validation_samples: int | None = 10,
+                 train_dirs: List[str],
+                 val_dirs: List[str],
+                 batch_size: int, 
+                 batches_per_epoch: int,
+                 use_sampler: bool,
+                 sampling_groups,
+                 max_oversampling: float,
+                 n_validation_samples: int | None,
                  **kwargs):
         super().__init__()
         self.n_workers = int(os.environ.get('SLURM_CPUS_PER_TASK', 0)) - 1
         self.kwargs = kwargs
         
         # Data directories 
-        self.train_dir_names = train_dir_names
-        self.val_dir_names = val_dir_names
+        self.train_dir_names = train_dirs
+        self.val_dir_names = val_dirs
 
         # Set training parameters
         self.batch_size = batch_size
@@ -579,15 +578,19 @@ class ImageDataModule(pl.LightningDataModule):
         load the data in a standard sequential manner.
         """
         if (self.n_validation_samples is not None) and (self.n_validation_samples > 0):
-            sampler = RandomSampler(
-                replacement=True,
-                num_samples=self.n_validation_samples
-            )
-            return [DataLoader(val_dataset, 
-                               batch_size=self.batch_size, 
-                               sampler=sampler, 
-                               num_workers=self.n_workers,
-                               collate_fn=collate_fn) for val_dataset in self.val_datasets]
+            dataloaders = []
+            for val_dataset in self.val_datasets:
+                sampler = RandomSampler(
+                    val_dataset,
+                    replacement=(len(val_dataset) < self.n_validation_samples),
+                    num_samples=self.n_validation_samples
+                )
+                dataloaders.append(DataLoader(val_dataset, 
+                                              batch_size=self.batch_size, 
+                                              sampler=sampler, 
+                                              num_workers=self.n_workers,
+                                              collate_fn=collate_fn))
+                return dataloaders
         else: 
             return [DataLoader(val_dataset, 
                                batch_size=self.batch_size, 

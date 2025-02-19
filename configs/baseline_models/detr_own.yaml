@@ -1,0 +1,38 @@
+# @package _global_
+defaults:
+  - _self_
+
+# Model configuration
+decoder: "DETR_own_implementation"
+backbone_name: "default"
+
+# # Learning rate and optimizer parameters
+# learning_rate: 1e-4
+# weight_decay: 1e-4
+# lr_drop: 200
+
+# Matcher settings
+set_cost_class: 1.0
+set_cost_bbox: 5.0
+set_cost_giou: 2.0
+
+# Loss coefficients
+bbox_loss_coef: 5.0
+giou_loss_coef: 2.0
+eos_coef: 0.1
+aux_loss: true
+
+# Model architecture and transformer settings
+num_queries: 200
+transformer_dim: 256
+dropout: 0.1
+nheads: 8
+dim_feedforward: 512
+num_layers: 6
+pre_norm: true
+gradient_clip_val: 0.1
+
+# Logging and checkpointing
+project_name: "OrganoidDetection"
+sub_name: "baseline_detr_own"
+log_dir: "logs/"

@@ -5,73 +5,19 @@ from transformer_layers import TransformerDecoder, MLP, PositionEmbeddingSine
 from matcher import HungarianMatcher
 from losses import SetCriterion
 
-class TrainingModule(pl.LightningModule):
-    def __init__(self, 
-                 model,
-                 learning_rate: float = 1e-4, 
-                 weight_decay: float = 1e-4,
-                 lr_drop: float = 200,
-                 max_epochs: int = 500,
-                 **kwargs
-                ):
-        super().__init__()
-        self.save_hyperparameters()
-        self.model = model
-
-        # Parameters for optimizer and scheduler
-        self.learning_rate = learning_rate
-        self.weight_decay = weight_decay
-        self.lr_drop = lr_drop
-        
-        self.max_epochs = max_epochs
-
-        self.training_step_outputs = []
-        self.val_step_outputs = []
-
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=self.lr_drop)
-        return [optimizer], [scheduler]
-
-    def training_step(self, batch, batch_idx):
-        self.model.train()
-        total_loss, loss_dict, metrics_dict = self.model.forward_train(batch)
-        
-        self.training_step_outputs.append({'loss': total_loss, 'giou': metrics_dict['giou']}) #.detach().cpu()
-
-        return {'loss': total_loss}
-
-    def on_train_epoch_end(self):
-        avg_train_loss = torch.stack([x['loss'] for x in self.training_step_outputs]).mean()
-        avg_train_iou = torch.stack([x['giou'] for x in self.training_step_outputs]).mean()
-
-        self.log('train_loss', avg_train_loss)
-        self.log('train_giou', avg_train_iou)
-
-        self.training_step_outputs.clear()
-
-    def validation_step(self, batch, batch_idx):
-        self.model.eval()
-        total_loss, loss_dict, metrics_dict = self.model.forward_eval(batch)
-
-        self.val_step_outputs.append({'loss': total_loss, 'giou': metrics_dict['giou']}) # .detach().cpu()
-
-        return {'val_loss': total_loss}
-
-    def on_validation_epoch_end(self):
-        avg_val_loss = torch.stack([x['loss'] for x in self.val_step_outputs]).mean()
-        avg_val_iou = torch.stack([x['giou'] for x in self.val_step_outputs]).mean()
-
-        self.log('val_loss', avg_val_loss)
-        self.log('val_giou', avg_val_iou)
-
-        self.val_step_outputs.clear()
-
 
 
 # Models should have the following structure:
-# normalized input (images / embeddings) -> [adaptor Conv2D -> backbone -> adaptor Conv2D] -> prediction and loss head 
+
+# We need the following models:
+# Faster Rcnn
+# SSD
+# DETR
+# DETR our implementation
+
+# For all models, we need the ability to exchange the backbone with SAM / SAM2 features, Cellpose features 
+
+# normalized input (images / embeddings) -> [backbone -> adaptor Conv2D (2 layers, 1x1 or upsampling)] -> prediction and loss head 
 # backbone: 
 # - transformer (based on embeddings)
 # - SAM base ViT with LoRA finetuning (based on images)
@@ -84,7 +30,7 @@ class TrainingModule(pl.LightningModule):
 # - DETR
 # - Centernet with convolutions
 # The prediction and loss head must implement the following methods:
-# backbone_out_features, backbone_out_dim [None or fixed dimension]
+# in_features, in_dim_fixed [None or fixed dimension], in_dim_downscale_factor [downscale factor compared to input image]
 # forward_train(batch): -> total_loss, loss_dict, metrics_dict with key 'giou'
 # forward_eval(batch): -> total_loss, loss_dict, metrics_dict with key 'giou'
 # forward(images / embeddings): -> [{'boxes': boxes, 'scores': scores}]
@@ -112,8 +58,9 @@ class DetectionTransformer(nn.Module):
                 ):
         super().__init__()
         self.backbone = backbone
-        self.backbone_out_features = transformer_dim  # Expected number of features of the backbone output
-        self.backbone_out_dim = None  # Arbitrary width / height possible as output of the backbone
+        self.in_features = transformer_dim  # Expected number of features of the backbone output
+        self.in_dim_fixed = None  # Arbitrary width / height possible as output of the backbone
+        self.adaptor = nn.Conv2d(backbone.num_channels, self.in_features, kernel_size=1)
 
         # Define matcher and loss here
         self.matcher = HungarianMatcher(cost_class=set_cost_class, cost_bbox=set_cost_bbox, cost_giou=set_cost_giou)

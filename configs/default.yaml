@@ -1,0 +1,36 @@
+defaults:
+  - _self_
+
+# Dataset paths
+train_dirs: ["MultiOrg_train_normal", "MultiOrg_train_macros", "OrgaSegment_train", "Tellu_train", "OrgaQuant_train"]
+val_dirs: ["MultiOrg_val_normal", "MultiOrg_val_macros", "OrgaSegment_val", "Tellu_val", "OrgaQuant_val"]
+
+# Model configuration
+decoder: ""
+backbone_name: "default"
+
+# Training settings
+seed: 2024
+batch_size: 16
+batches_per_epoch: 200
+max_epochs: 900
+use_sampler: true
+sampling_groups: null
+max_oversampling: 10.0
+n_validation_samples: 10
+
+gradient_clip_val: 0.1
+
+# Pretrained checkpoint:
+checkpoint_path: null
+
+# Learning rate and optimizer parameters
+learning_rate: 1e-4
+weight_decay: 1e-4
+lr_drop: 300
+
+# Logging and checkpointing
+project_name: "OrganoidDetection"
+sub_name: "default"
+log_dir: "logs/"
+

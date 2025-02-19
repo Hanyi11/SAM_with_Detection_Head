@@ -130,23 +130,24 @@ if __name__=="__main__":
             im, _ = dl.normalize(im, correct_bg=correct_bg)
             H, W = im.shape[:2]
 
+            img_folder = img_folder_base / split / subdir / f'im_{im_ID}'
+            img_folder.mkdir(exist_ok=True, parents=True)
+
+            box_folder = box_folder_base / split / subdir / f'im_{im_ID}'
+            box_folder.mkdir(exist_ok=True, parents=True)
+
+            seg_folder = seg_folder_base / split / subdir / f'im_{im_ID}'
+            seg_folder.mkdir(exist_ok=True, parents=True)
+
+            offsets = []
+            box_counts = []
+
             i = 0
             for patch_size in [512, 1024, 2048, 4096]:
                 if (patch_size > 2* max(H, W)) and (patch_size > 512):
                     # Stop extracting patches, if patch_size is much larger than the image.
                     continue
 
-                img_folder = img_folder_base / split / subdir / f'im_{im_ID}_{patch_size}'
-                img_folder.mkdir(exist_ok=True, parents=True)
-
-                box_folder = box_folder_base / split / subdir / f'im_{im_ID}_{patch_size}'
-                box_folder.mkdir(exist_ok=True, parents=True)
-
-                seg_folder = seg_folder_base / split / subdir / f'im_{im_ID}_{patch_size}'
-                seg_folder.mkdir(exist_ok=True, parents=True)
-
-                offsets = []
-                box_counts = []
                 for _, (im_crop, 
                         mask_crop, 
                         boxes_crop, 
@@ -172,10 +173,10 @@ if __name__=="__main__":
 
                     i += 1
 
-                offsets = np.array(offsets)
-                np.save(box_folder / f'offsets.npy', offsets, allow_pickle=False)
+            offsets = np.array(offsets)
+            np.save(box_folder / f'offsets.npy', offsets, allow_pickle=False)
 
-                box_counts = np.array(box_counts)
-                np.save(box_folder / f'box_counts.npy', box_counts, allow_pickle=False)
+            box_counts = np.array(box_counts)
+            np.save(box_folder / f'box_counts.npy', box_counts, allow_pickle=False)
 
 

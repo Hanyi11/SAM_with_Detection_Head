@@ -1,0 +1,19 @@
+# @package _global_
+defaults:
+  - _self_
+
+# Model configuration
+decoder: "FRCNN"
+backbone_name: "default"
+
+# # Learning rate and optimizer parameters
+# learning_rate: 1e-4
+# weight_decay: 1e-4
+# lr_drop: 200
+
+gradient_clip_val: 0.1
+
+# Logging and checkpointing
+project_name: "OrganoidDetection"
+sub_name: "baseline_frcnn"
+log_dir: "logs/"
