@@ -24,6 +24,7 @@ import models.faster_rcnn_model
 import models.image_datamodule
 import models.ssd_model
 
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 
 
@@ -138,6 +139,14 @@ def train(args) -> None:
     print("Training Parameters:")
     for arg in vars(args):
         print(f"{arg}: {getattr(args, arg)}")
+            
+    # For logging
+    train_dirs_str = "_".join(args.train_dirs)
+    val_dirs_str = "_".join(args.val_dirs)
+    logging_name = f"{args.decoder}_{args.backbone_name}_{train_dirs_str.replace('/', '_')}_{args.sub_name}_{args.use_sampler}_{args.batch_size}_{args.batches_per_epoch}_{args.seed}"
+    with open_dict(args):
+        args.logging_name = logging_name
+
 
     # Determinism
     random.seed(0)
@@ -145,18 +154,16 @@ def train(args) -> None:
     torch.manual_seed(args.seed)
     pl.seed_everything(args.seed)
         
+
+    # Model and dataset initialization
     data_module, model = initialize_model_and_dataset(args)
+
 
     # Configure model checkpointing
     ckpt_frequency = 25
 
     ckpt_path = Path("/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained_miccai/")
     ckpt_path.mkdir(exist_ok=True)
-
-    # For logging
-    train_dirs_str = "_".join(args.train_dirs)
-    val_dirs_str = "_".join(args.val_dirs)
-    logging_name = f"{args.decoder}_{args.backbone_name}_{train_dirs_str.replace('/', '_')}_{args.sub_name}_{args.use_sampler}_{args.batch_size}_{args.batches_per_epoch}_{args.seed}"
 
     # Resume from previous training checkpoint and pretraining initialization
     (ckpt_path / logging_name).mkdir(exist_ok=True)
@@ -227,6 +234,17 @@ def train(args) -> None:
     )
 
     trainer.fit(model, data_module, ckpt_path=ckpt_file_resume)
+
+
+    # Testing of the last checkpoint model
+    ckpt_last = ckpt_path / logging_name / f"{logging_name}-last.ckpt"
+    assert ckpt_last.exists(), ckpt_last
+    model = model.load_from_checkpoint(ckpt_last)
+
+    for ds_name, test_dataloader in zip(data_module.test_dir_names,
+                                        data_module.get_test_dataloaders()):
+        model.current_test_set_name = ds_name
+        trainer.test(model, test_dataloader)
 
 
 

@@ -9,6 +9,7 @@ from typing import Literal, List
 from copy import deepcopy
 from pathlib import Path
 from PIL import Image
+from omegaconf import ListConfig, OmegaConf
 
 
 import pandas as pd
@@ -27,7 +28,7 @@ if path_detr not in sys.path:
 from detr.datasets import coco
 
 
-def compute_weights(metadata: pd.DataFrame, groups, max_oversampling = 10.0):
+def compute_weights(metadata: pd.DataFrame, groups, max_oversampling = 10.0, max_ratio_0_objects=0.05):
     """
     Compute per-sample weights for a dataset, balancing multiple subgroups of data.
 
@@ -66,11 +67,21 @@ def compute_weights(metadata: pd.DataFrame, groups, max_oversampling = 10.0):
         weight = total_weight_per_group / len(df)
         ids = df[['idx']].values.tolist()
         w[ids] = weight
-        print('w', w)
         print(name, 'weight', weight)
 
     # Enforce max weight:
     w = np.minimum(w, max_weight)
+
+    total_weight = np.sum(w)
+    zero_objects = (metadata[['n_objects']].values == 0).flatten()
+    weight_zero_objects = np.sum(w[zero_objects])
+    if weight_zero_objects / total_weight > max_ratio_0_objects:
+        w[zero_objects] = w[zero_objects] * (max_ratio_0_objects / (1-max_ratio_0_objects)) * (total_weight - weight_zero_objects) / weight_zero_objects
+
+    # Check that calculations were correct
+    total_weight = np.sum(w)
+    weight_zero_objects = np.sum(w[zero_objects])
+    assert weight_zero_objects / total_weight <= max_ratio_0_objects + 1e-3, weight_zero_objects / total_weight
 
     return w
 
@@ -79,7 +90,11 @@ def collate_fn(batch):
     """Take a batch of data samples and seperate images and targets into two seperate lists."""
     images = [b[0] for b in batch]
     targets = [b[1] for b in batch]
-    return images, targets
+    img_ids = [b[2] for b in batch]
+    offsets = [b[3] for b in batch]
+    patch_sizes = [b[4] for b in batch]
+    patch_numbers = [b[5] for b in batch]
+    return images, targets, img_ids, offsets, patch_sizes, patch_numbers
 
 
 # TODO: add backbone-specific padding to avoid padding artifacts during training. (always pad only the bottom and right, to avoid issues with bboxes.)
@@ -390,18 +405,15 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         # Load image
         image_path = self.image_files[idx]
-        if self.backbone == 'DETR':
-            image = cv2.imread(image_path, cv2.IMREAD_COLOR)
-            H, W = image.shape[:2]
-        else:
-            image = Image.open(image_path).convert('RGB')
-            image = self.transforms(image)
-            H, W = image.shape[-2:]
-        # print('image in __getitem__', image)
-        # print('image.shape', image.shape)
-        # image = image.squeeze(0)  # .permute(1, 2, 0).cpu().numpy()
-        # image = np.load(image_path)
-
+        # if self.backbone == 'DETR':
+        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        H, W = image.shape[:2]
+        # else:
+        #     image = Image.open(image_path).convert('RGB')
+        #     H, W = image.size
+        #     # image = self.transforms(image)
+            
+            
         # --- Load targets (BBs) and transform to right format
         # If it's an open images path
         if idx >= len(self.label_files):
@@ -412,6 +424,10 @@ class ImageDataset(Dataset):
             targets = [[(b.YMin + b.YMax) / 2, (b.XMin + b.XMax) / 2, b.YMax - b.YMin, b.XMax - b.XMin] for b in bboxes.itertuples(index=False)]
             targets = np.array(targets).reshape((-1, 4))
             targets = targets * np.array([[H, W, H, W]]) / max(H, W)
+            offsets = None
+            patch_shape = None
+            img_id = None
+            patch_number = None
         # If it's not an open images path
         else:
             assert 'open_images' not in str(image_path), image_path
@@ -423,6 +439,12 @@ class ImageDataset(Dataset):
             if overlap_path.exists():
                 overlap = np.load(overlap_path)
                 targets = targets[overlap > self.min_overlap]
+                
+            patch_number = int(label_path.stem.replace('patch_', ''))
+            offsets_path = label_path.parent / 'offsets.npy'
+            offsets = np.load(offsets_path, allow_pickle=False)[patch_number]
+            patch_shape = (H, W)
+            img_id = image_path.parent.name
 
         # Filter boxes that are too small
         targets = targets[
@@ -433,6 +455,20 @@ class ImageDataset(Dataset):
         # Convert BB format from cycxhw to xyxy
         targets = box_ops_numpy.cxcywh_to_xyxy(targets) * max(H, W)
         targets = np.stack((targets[:, 1], targets[:, 0], targets[:, 3], targets[:, 2]), axis=1)
+
+        # Rescale image and boxes to max side length 1024
+        max_side_length = 1024
+        factor = float(max_side_length) / max(H, W) 
+        image = cv2.resize(image, None, fx=factor, fy=factor, interpolation=cv2.INTER_LINEAR)  # resize to 1024
+        image = image[:min(image.shape[0], max_side_length), 
+                      :min(image.shape[1], max_side_length)]  # ensure maximum 1024
+        out_H, out_W = image.shape[:2]
+        targets *= np.array([[float(out_W) / W, 
+                              float(out_H) / H, 
+                              float(out_W) / W, 
+                              float(out_H) / H]])  # Approx * factor
+
+        image = PIL.Image.fromarray(image)
 
         # DETR
         if self.backbone == 'DETR':
@@ -448,9 +484,12 @@ class ImageDataset(Dataset):
                     } for box in targets
                 ]
             }
-            targets = self.prepare(PIL.Image.fromarray(image), annotations)
+            targets = self.prepare(image, annotations)
             image, targets = self.transforms(image, targets)
-            return image, targets
+            return image, targets, img_id, offsets, patch_shape, patch_number
+        
+
+        image = self.transforms(image)
 
         # Augmentation (targets are [x, y, x, y] in px)
         if self.augmentation is not None:
@@ -488,13 +527,14 @@ class ImageDataset(Dataset):
         #     if ds_name in str(image_path):
         #         print('idx:', idx, "ds", ds_name, 'weight', w[idx], num_boxes)
         
-        return image, targets_out
+        return image, targets_out, img_id, offsets, patch_shape, patch_number
 
 
 class ImageDataModule(pl.LightningDataModule):
     def __init__(self, 
                  train_dirs: List[str],
                  val_dirs: List[str],
+                 test_dirs: List[str],
                  batch_size: int, 
                  batches_per_epoch: int,
                  use_sampler: bool,
@@ -509,6 +549,7 @@ class ImageDataModule(pl.LightningDataModule):
         # Data directories 
         self.train_dir_names = train_dirs
         self.val_dir_names = val_dirs
+        self.test_dir_names = test_dirs
 
         # Set training parameters
         self.batch_size = batch_size
@@ -516,7 +557,10 @@ class ImageDataModule(pl.LightningDataModule):
 
         # Set data loading parameters
         self.use_sampler = use_sampler
-        self.sampling_groups = sampling_groups
+        if isinstance(sampling_groups, ListConfig):
+            self.sampling_groups = OmegaConf.to_object(sampling_groups)
+        else:
+            self.sampling_groups = sampling_groups
         self.max_oversampling = max_oversampling
         self.n_validation_samples = n_validation_samples
         
@@ -536,6 +580,7 @@ class ImageDataModule(pl.LightningDataModule):
                 augmentation=False,
                 **self.kwargs
             ) for val_dir_name in self.val_dir_names]
+
 
 
     def train_dataloader(self):
@@ -596,4 +641,23 @@ class ImageDataModule(pl.LightningDataModule):
                                batch_size=self.batch_size, 
                                num_workers=self.n_workers,
                                collate_fn=collate_fn) for val_dataset in self.val_datasets]
+
+
+    def get_test_dataloaders(self):
+        """
+        Creates and returns a DataLoader for the validation dataset.
+        Depending on the configuration, it may use a sampler for balanced sampling or 
+        load the data in a standard sequential manner.
+        """
+        test_datasets = [ImageDataset(
+            data_split_dirs=[test_dir_name],
+            data_split="test", 
+            augmentation=False,
+            **self.kwargs
+        ) for test_dir_name in self.test_dir_names]
+
+        return [DataLoader(test_dataset, 
+                           batch_size=1, 
+                           num_workers=self.n_workers,
+                           collate_fn=collate_fn) for test_dataset in test_datasets]
 

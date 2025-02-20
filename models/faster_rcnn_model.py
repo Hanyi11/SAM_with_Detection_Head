@@ -95,7 +95,7 @@ class FasterRCNN_model(nn.Module):
         return model
     
 
-    def forward(self, image):
+    def forward(self, image, size=None):
 
         # Do a forward pass in FasterRCNN
         detections = self.model(image)

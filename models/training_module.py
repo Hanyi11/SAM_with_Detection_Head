@@ -1,3 +1,5 @@
+from pathlib import Path
+import numpy as np
 import torch
 from torch import nn
 import pytorch_lightning as pl
@@ -6,6 +8,7 @@ import pytorch_lightning as pl
 class TrainingModule(pl.LightningModule):
     def __init__(self, 
                  model,
+                 logging_name,
                  learning_rate: float = 1e-4, 
                  weight_decay: float = 1e-4,
                  lr_drop: float = 200,
@@ -15,6 +18,9 @@ class TrainingModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
         self.model = model
+        self.current_test_set_name = None
+        self.logging_name = logging_name
+        self.output_dir_base = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/testset_predictions/trained') / self.logging_name
 
         # Parameters for optimizer and scheduler
         self.learning_rate = learning_rate
@@ -60,6 +66,7 @@ class TrainingModule(pl.LightningModule):
         # self.log('train_giou', avg_train_iou)
 
         self.training_step_outputs.clear()
+        torch.cuda.empty_cache()
 
     def validation_step(self, batch, batch_idx):
         self.model.eval()
@@ -83,4 +90,40 @@ class TrainingModule(pl.LightningModule):
         self.log('val_giou', avg_val_iou)
 
         self.val_step_outputs.clear()
+        torch.cuda.empty_cache()
 
+    # def on_test_epoch_start(self):
+    #     # offsets_file = 
+    #     # self.offsets = 
+    #     return super().on_test_epoch_start()
+
+    def test_step(self, batch, batch_idx):
+        self.model.eval()
+        images = batch[0]
+        image_ids = batch[2]
+        image_sizes = batch[4]
+        patch_numbers = batch[5]
+        for image, size, img_id, patch_number in zip(images, image_sizes, image_ids, patch_numbers):
+            pred = self.model.forward([image])  # Assumes output in the format [xyxy] in absolute pixel coordinates of the image coordinate system
+
+            boxes = pred['boxes'].detach().cpu().numpy()
+            scores = pred['scores'].detach().cpu().numpy()
+
+            # Transform boxes to the original image scale
+            max_side_length = 1024.0
+            orig_H, orig_W = size
+            boxes *= max(orig_H, orig_W) / max_side_length
+            boxes = np.minimum(boxes, np.array([[orig_W, orig_H, orig_W, orig_H]]))
+
+            # Save predictions
+            scores_file = self.output_dir_base / self.current_test_set_name / img_id / f'patch_{patch_number}_scores.npy'
+            boxes_file = self.output_dir_base / self.current_test_set_name / img_id / f'patch_{patch_number}_boxes.npy'
+            assert not scores_file.exists(), scores_file
+            assert not boxes_file.exists(), boxes_file
+            np.save(scores_file, scores, allow_pickle=False)
+            np.save(boxes_file, boxes, allow_pickle=False)
+
+    def on_test_epoch_end(self):
+        self.current_test_set_name = None
+        torch.cuda.empty_cache()
+        return super().on_test_epoch_end()

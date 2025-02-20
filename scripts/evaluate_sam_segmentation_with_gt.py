@@ -125,15 +125,15 @@ if __name__=='__main__':
     mAP_metric.warn_on_many_detections = False
 
     for model_version, model in [
-        ('gt_sam1', GroundTruthSAM(sam_version='sam1', box_noise_std=0, box_noise_bias=0)),
+        # ('gt_sam1', GroundTruthSAM(sam_version='sam1', box_noise_std=0, box_noise_bias=0)),
         ('gt_sam2', GroundTruthSAM(sam_version='sam2', box_noise_std=0, box_noise_bias=0)),
     ]:
         for model_ext, std, bias in [
-            ('sd_0_bias_0', 0, 0),
-            ('sd_1_bias_0', 1, 0),
-            ('sd_2_bias_0', 2, 0),
-            ('sd_3_bias_0', 3, 0),
-            ('sd_4_bias_0', 4, 0),
+            # ('sd_0_bias_0', 0, 0),
+            # ('sd_1_bias_0', 1, 0),
+            # ('sd_2_bias_0', 2, 0),
+            # ('sd_3_bias_0', 3, 0),
+            # ('sd_4_bias_0', 4, 0),
             ('sd_5_bias_0', 5, 0),
             ('sd_1_bias_1', 1, 1),
             ('sd_2_bias_2', 2, 2),
