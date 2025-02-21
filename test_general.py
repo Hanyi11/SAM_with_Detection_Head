@@ -104,10 +104,8 @@ def test(args) -> None:
     ckpt_path = Path("/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained_miccai/")
     ckpt_last = ckpt_path / logging_name / f"{logging_name}-last.ckpt"
     assert ckpt_last.exists(), ckpt_last
-    model = model.load_from_checkpoint(ckpt_last)
 
     trainer = pl.Trainer(
-        # logger=[wandb_logger],
         max_epochs=args.max_epochs,
         gradient_clip_val=args.gradient_clip_val,
     )
@@ -115,7 +113,7 @@ def test(args) -> None:
     for ds_name, test_dataloader in zip(data_module.test_dir_names,
                                         data_module.get_test_dataloaders()):
         model.current_test_set_name = ds_name
-        trainer.test(model, test_dataloader)
+        trainer.test(model, test_dataloader, ckpt_path=ckpt_last)
 
 
 

@@ -183,7 +183,7 @@ def train(args) -> None:
 
     if (args.checkpoint_path is not None) and (args.checkpoint_path != ""):
         # Load the pre-trained checkpoint
-        model = model.load_from_checkpoint(args.checkpoint_path, **args)
+        model = model.__class__.load_from_checkpoint(args.checkpoint_path, **args)
 
 
     # Logging
@@ -239,12 +239,15 @@ def train(args) -> None:
     # Testing of the last checkpoint model
     ckpt_last = ckpt_path / logging_name / f"{logging_name}-last.ckpt"
     assert ckpt_last.exists(), ckpt_last
-    model = model.load_from_checkpoint(ckpt_last)
 
+    print(len(data_module.test_dir_names))
+    print(data_module.test_dir_names)
     for ds_name, test_dataloader in zip(data_module.test_dir_names,
                                         data_module.get_test_dataloaders()):
+        print('\n\nds_name', ds_name, '\n\n')
+        print('\n\ntest_dataloader', test_dataloader, '\n\n')
         model.current_test_set_name = ds_name
-        trainer.test(model, test_dataloader)
+        trainer.test(model, test_dataloader, ckpt_path=ckpt_last)
 
 
 

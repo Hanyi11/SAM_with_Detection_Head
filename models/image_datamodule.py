@@ -480,7 +480,7 @@ class ImageDataset(Dataset):
                         'bbox': box,
                         'is_crowd': False,
                         'area': box[2] * box[3],
-                        'category_id': 0,  # Label
+                        'category_id': 1,  # Label
                     } for box in targets
                 ]
             }
@@ -510,22 +510,6 @@ class ImageDataset(Dataset):
                        'is_crowd': is_crowd, 
                        'orig_size': orig_size, 
                        'size': size}        
-
-        # # Prints from which dataset we sampled and its sampling weight for debugging 
-        # w = compute_weights_new_data_only(self, factor_new_data=0.2)
-        # for ds_name in [
-        #     'OrganoID',
-        #     'OrgaSegment',
-        #     'OrgaQuant',
-        #     'OrgaExtractor',
-        #     'Tellu',
-        #     'MultiOrg',
-        #     'NewData',
-        #     'NeurIPS',
-        #     'open_images'
-        # ]:
-        #     if ds_name in str(image_path):
-        #         print('idx:', idx, "ds", ds_name, 'weight', w[idx], num_boxes)
         
         return image, targets_out, img_id, offsets, patch_shape, patch_number
 
@@ -635,7 +619,7 @@ class ImageDataModule(pl.LightningDataModule):
                                               sampler=sampler, 
                                               num_workers=self.n_workers,
                                               collate_fn=collate_fn))
-                return dataloaders
+            return dataloaders
         else: 
             return [DataLoader(val_dataset, 
                                batch_size=self.batch_size, 
@@ -649,12 +633,14 @@ class ImageDataModule(pl.LightningDataModule):
         Depending on the configuration, it may use a sampler for balanced sampling or 
         load the data in a standard sequential manner.
         """
+        print('self.test_dir_names', self.test_dir_names)
         test_datasets = [ImageDataset(
             data_split_dirs=[test_dir_name],
             data_split="test", 
             augmentation=False,
             **self.kwargs
         ) for test_dir_name in self.test_dir_names]
+        print('test_datasets', test_datasets)
 
         return [DataLoader(test_dataset, 
                            batch_size=1, 

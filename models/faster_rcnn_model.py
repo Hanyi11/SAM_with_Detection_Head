@@ -95,23 +95,26 @@ class FasterRCNN_model(nn.Module):
         return model
     
 
-    def forward(self, image, size=None):
+    def forward(self, images, sizes=None, filter_class=None):
 
         # Do a forward pass in FasterRCNN
-        detections = self.model(image)
-        detections = detections[0]
-        boxes = detections['boxes']
-        labels = detections['labels']
-        scores = detections['scores']
+        detections = self.model(images)
+        if filter_class is not None:
+            out = []
+            for detection in detections:
+                boxes = detection['boxes']
+                labels = detection['labels']
+                scores = detection['scores']
 
-        # Select only the results for foreground (1) predictions 
-        is_foreground = labels == 1 # Creates a boolean tensor: True where labels == 1, False where labels == 0
-        boxes = boxes[is_foreground]
-        labels = labels[is_foreground]
-        scores = scores[is_foreground]
-        out = {'pred_scores': scores, 'pred_boxes': boxes}
+                # Select only the results for one class (filter_class) 
+                is_foreground = labels == filter_class
+                boxes = boxes[is_foreground]
+                labels = labels[is_foreground]
+                scores = scores[is_foreground]
+                out.append({'scores': scores, 'boxes': boxes, 'labels': labels})
+            return out
    
-        return out
+        return detections
 
     # def configure_optimizers(self):
     #     optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)

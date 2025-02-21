@@ -4,7 +4,7 @@ defaults:
 # Dataset paths
 train_dirs: ["MultiOrg_train_normal", "MultiOrg_train_macros", "OrgaSegment_train", "Tellu_train", "OrgaQuant_train"]
 val_dirs: ["MultiOrg_val_normal", "MultiOrg_val_macros", "OrgaSegment_val", "Tellu_val", "OrgaQuant_val"]
-test_dirs: ["MultiOrg_test_normal", "MultiOrg_test_macros", "OrgaSegment_test", "Tellu_test", "OrgaQuant_test", "OrgaExtractor_all", "NewData_all", "OrganoID_test", "OrganoID_test_C", "OrganoID_test_ACC", "OrganoID_test_Lung", "OrganoID_test_mouse"]
+test_dirs: ["OrgaExtractor_all", "NewData_all", "OrganoID_test", "OrganoID_test_C", "OrganoID_test_ACC", "OrganoID_test_Lung", "OrganoID_test_mouse", "MultiOrg_test_normal", "MultiOrg_test_macros", "OrgaSegment_test", "Tellu_test", "OrgaQuant_test"]
 
 # Model configuration
 decoder: ""
@@ -13,12 +13,12 @@ backbone_name: "default"
 # Training settings
 seed: 2024
 batch_size: 8
-batches_per_epoch: 200
+batches_per_epoch: 100
 max_epochs: 900
 use_sampler: true
 sampling_groups: ["n_objects"]
 max_oversampling: 10.0
-n_validation_samples: 20
+n_validation_samples: 40
 
 gradient_clip_val: 0.1
 

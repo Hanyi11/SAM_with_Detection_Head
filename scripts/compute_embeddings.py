@@ -117,7 +117,7 @@ class Images(torch.utils.data.Dataset):
     def __init__(self, embed_name):
         super().__init__()
         self.base = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale_miccai/patch_images')
-        self.img_list = sorted(list(self.base.glob('*/*/*/*.png')))[:150000]
+        self.img_list = sorted(list(self.base.glob('*/*/*/*.png')))  # [:150000]
         print('len(self.img_list)', len(self.img_list))
         self.embed_name = embed_name
 

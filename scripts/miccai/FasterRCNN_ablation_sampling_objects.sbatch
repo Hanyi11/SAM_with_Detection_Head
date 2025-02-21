@@ -31,6 +31,6 @@ conda deactivate
 source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
 # FRCNN v2 with group-based sampling
-python train_general.py +baseline_models=frcnn_v2 sub_name="20022025_baseline_frcnn_v2_sampling_n_objects" sampling_groups=["n_objects"] seed=2024
-python train_general.py +baseline_models=frcnn_v2 sub_name="20022025_baseline_frcnn_v2_sampling_n_objects" sampling_groups=["n_objects"] seed=2025
-python train_general.py +baseline_models=frcnn_v2 sub_name="20022025_baseline_frcnn_v2_sampling_n_objects" sampling_groups=["n_objects"] seed=2026
+python train_general.py +baseline_models=frcnn_v2 sub_name="20022025_baseline_frcnn_v2_sampling_n_objects_100_batches_per_epoch" sampling_groups=["n_objects"] seed=2024
+python train_general.py +baseline_models=frcnn_v2 sub_name="20022025_baseline_frcnn_v2_sampling_n_objects_100_batches_per_epoch" sampling_groups=["n_objects"] seed=2025
+python train_general.py +baseline_models=frcnn_v2 sub_name="20022025_baseline_frcnn_v2_sampling_n_objects_100_batches_per_epoch" sampling_groups=["n_objects"] seed=2026

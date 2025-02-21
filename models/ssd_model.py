@@ -20,20 +20,24 @@ class SSD(nn.Module):
         self.model = ssd300_vgg16(weights_backbone=VGG16_Weights.IMAGENET1K_FEATURES,
                                   num_classes=num_classes)
         
-    def forward(self, image):
-        detections = self.model(image)
-        detections = detections[0]
-        boxes = detections['boxes']
-        labels = detections['labels']
-        scores = detections['scores']
+    def forward(self, images, sizes=None, filter_class=None):
+        detections = self.model(images)
+        if filter_class is not None:
+            out = []
+            for detection in detections:
+                boxes = detection['boxes']
+                labels = detection['labels']
+                scores = detection['scores']
 
-        is_foreground = labels == 1
-        boxes = boxes[is_foreground]
-        labels = labels[is_foreground]
-        scores = scores[is_foreground]
-
-        out = {'pred_scores': scores, 'pred_boxes': boxes}
-        return out
+                # Select only the results for one class (filter_class) 
+                is_foreground = labels == filter_class
+                boxes = boxes[is_foreground]
+                labels = labels[is_foreground]
+                scores = scores[is_foreground]
+                out.append({'scores': scores, 'boxes': boxes, 'labels': labels})
+            return out
+   
+        return detections
 
     def forward_train(self, batch):
         images, targets = batch[0], batch[1]
