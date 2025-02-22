@@ -166,7 +166,7 @@ class PredictionSAM():
         embed_file = patched_embeddings_dir / f'{patched_image.stem}.pt'
         try:
             # Set pre-computed image embedding
-            image_embedding = torch.load(embed_file)
+            image_embedding = torch.load(embed_file, map_location=self.device)
             for k, v in image_embedding.items():
                 setattr(self.sam_predictor, k, v)
         except Exception as e:
@@ -279,16 +279,18 @@ class PredictionSAM():
         # Postprocessing
         self.pred_boxes, self.pred_scores, self.pred_contours, all_boxes_patch, patched_image_ids = \
             self.filter_diameter(self.pred_boxes, self.pred_scores, self.pred_contours, all_boxes_patch, patched_image_ids, min_diameter)
-        
+
         self.pred_boxes, self.pred_scores, self.pred_contours, all_boxes_patch, patched_image_ids = \
             self.nms(self.pred_boxes, self.pred_scores, self.pred_contours, all_boxes_patch, patched_image_ids)
+        
         
         if self.pred_boxes.shape[0] == 0:
             return [], self.pred_boxes, self.pred_scores
         
         # Only keep top max_detections
-        sorted_indices = np.argsort(scores)[::-1]
+        sorted_indices = np.argsort(self.pred_scores)[::-1]
         sorted_indices = sorted_indices[:self.max_detections]
+
         self.pred_boxes = self.pred_boxes[sorted_indices]
         self.pred_scores = self.pred_scores[sorted_indices]
         all_boxes_patch = all_boxes_patch[sorted_indices]

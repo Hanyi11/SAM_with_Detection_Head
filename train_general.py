@@ -19,6 +19,8 @@ import hydra
 from omegaconf import DictConfig
 from omegaconf import open_dict
 
+import models.detr_own_impl_model
+import models.embeddings_datamodule
 import models.training_module
 import models.faster_rcnn_model
 import models.image_datamodule
@@ -96,14 +98,14 @@ def initialize_model_and_dataset(args: dict):
         datamodule = models.image_datamodule.ImageDataModule(**args)
         raise NotImplementedError()
     elif args.backbone_name == "SAM_large":
-        backbone = torch.nn.Identity()  # Replace with adaptor layers
-        raise NotImplementedError()
+        # backbone = torch.nn.Identity()  # Replace with adaptor layers
+        datamodule = models.embeddings_datamodule.EmbeddingDataModule(**args)
     elif args.backbone_name == "SAM2_large":
-        raise NotImplementedError()
+        datamodule = models.embeddings_datamodule.EmbeddingDataModule(**args)
     elif args.backbone_name == "Cellpose":
         raise NotImplementedError()
     elif args.backbone_name == "FM_concat":
-        raise NotImplementedError()
+        datamodule = models.embeddings_datamodule.EmbeddingDataModule(**args)
     elif args.backbone_name == 'default':
         # Don't instantiate any backbone and change the name to the same as the decoder (necessary for image data module).
         backbone = None
@@ -117,7 +119,7 @@ def initialize_model_and_dataset(args: dict):
     #     args.pop('backbone')  # Avoid multiple kwargs named backbone
 
     if args.decoder == "DETR_own_implementation":
-        decoder = models.detection_head_model.DetectionTransformer(backbone=backbone, **args)
+        decoder = models.detr_own_impl_model.DetectionTransformer(**args)
     elif args.decoder == "DETR":
         raise NotImplementedError()
     elif args.decoder == "FRCNN":

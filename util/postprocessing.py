@@ -819,6 +819,8 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
     hausdorff_95_scores = []
     masd_scores = []
     assd_scores = []
+    iou_scores_no_thres = []
+    dice_scores_no_thres = []
     for iou_t in iou_thres:
         is_true_match, fns, pred_ids, gt_ids = greedy_matching(iou_matrix.copy(), iou_threshold=iou_t)
         rc = np.cumsum(is_true_match) / max(num_gts, 1)  # Recall
@@ -833,11 +835,21 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
         hausdorff_95 = []
         masd = []
         assd = []
+        ious = []
+        dices = []
         for i, j in zip(pred_ids, gt_ids):
             pred_contour = contours[i]
             gt_mask = gt_masks[j]
             gt_contour = mask_to_contour(gt_mask)
             # hausdorff_contour.append(shapely.hausdorff_distance(pred_contour, gt_contour, densify=0.8))
+
+            # IoU and dice
+            intersect = pred_contour.intersection(gt_contour).area
+            union = pred_contour.union(gt_contour).area
+            ious.append(intersect / union)
+            dices.append(2 * intersect / (union + intersect))
+
+            # Contour-based metrics
             pred_contour_points = contour_to_points(pred_contour, gt_mask.shape, thickness=1)
             gt_contour_points = contour_to_points(gt_contour, gt_mask.shape, thickness=1)
             distances = scipy.spatial.distance.cdist(pred_contour_points, gt_contour_points, metric='euclidean')
@@ -855,6 +867,8 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
         hausdorff_95_scores.append(np.mean(hausdorff_95))
         masd_scores.append(np.mean(masd))
         assd_scores.append(np.mean(assd))
+        iou_scores_no_thres.append(np.mean(ious))
+        dice_scores_no_thres.append(np.mean(dices))
 
     # F1 score, ... based on confidence thresholds
     pq_scores = []
@@ -902,7 +916,7 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
         prec_scores.append(precision)
         recall_scores.append(recall)
     
-    return ap_scores, hausdorff_scores, hausdorff_95_scores, masd_scores, assd_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
+    return ap_scores, hausdorff_scores, hausdorff_95_scores, masd_scores, assd_scores, iou_scores_no_thres, dice_scores_no_thres, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
 
 
 

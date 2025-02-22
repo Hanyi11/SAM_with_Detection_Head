@@ -20,6 +20,9 @@ import geopandas as gpd
 import basicpy
 import torchmetrics.detection
 
+import warnings
+warnings.filterwarnings("ignore", "You are using `torch.load` with `weights_only=False`*.")
+
 
 import sys
 sys.path.append('/home/icb/lion.gleiter/projects/organoid_sam/SAM_with_Detection_Head')
@@ -122,11 +125,21 @@ if __name__=='__main__':
 
     for model_name, sam_version, logging_name in [
         ('SSD_objects_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2024'),
+        # ('SSD_objects_2025', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2025'),
+        # ('SSD_objects_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2026'),
+        ('SSD_objects_dataset_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_True_8_200_2024'),
+        ('SSD_objects_dataset_patchsize_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2024'),
+        ('FRCNNv2_bs5_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_5_batches_per_epoch_True_8_5_2024'),
+        # ('FRCNNv2_bs5_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_5_batches_per_epoch_True_8_5_2025'),
+        ('FRCNNv2_bs10_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_10_batches_per_epoch_True_8_10_2024'),
+        ('FRCNNv2_bs20_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_10_batches_per_epoch_True_8_20_2024'),
+        ('FRCNNv2_bs50_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_50_batches_per_epoch_True_8_50_2024'),
+        ('FRCNNv2_bs100_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_100_batches_per_epoch_True_8_100_2024'),
+        ('FRCNNv2_bs50_objects_dataset_patchsize_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_patch_size_50_batches_per_epoch_True_8_50_2024'),
     ]:
         model_name = f"{model_name}_{sam_version}"
         model = PredictionSAM(logging_name=logging_name, sam_version=sam_version)
         for ds_idx, ds in enumerate([
-            dl.MultiOrg(split='test_macros'),
             dl.OrganoID(split='test'),
             dl.OrganoID(split='test_C'),
             dl.OrganoID(split='test_Lung'),
@@ -137,8 +150,14 @@ if __name__=='__main__':
             dl.OrgaSegment(split='test'),
             dl.OrgaQuant(split='test'),
             dl.Tellu(split='test'),
+            dl.MultiOrg(split='test_macros'),
             dl.MultiOrg(split='test_normal'),
         ]):
+            
+            if (results_dir / f'{model_name}' / f'mean_segmentation_metrics_{str(ds)}_{ds.split}.csv').exists():
+                continue
+
+
             detection_mAP = []
             segmentation_mAP = []
             detection_metrics = []
@@ -205,7 +224,7 @@ if __name__=='__main__':
                 if (gt_mask is not None) and evaluate_segmentation:
                     gt_masks = pp.convert_mask_to_binary(gt_mask)
                     iou_matrix_seg = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=gt_masks)
-                    mAP_scores, hausdorff_scores, hausdorff_95_scores, masd_scores, assd_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_segmentation_all(
+                    mAP_scores, hausdorff_scores, hausdorff_95_scores, masd_scores, assd_scores, iou_scores_no_thres, dice_scores_no_thres, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_segmentation_all(
                         iou_matrix_seg, iou_thres, scores, thresholds, gt_masks, contours
                     )
 
@@ -216,6 +235,8 @@ if __name__=='__main__':
                         'hausdorff_95_scores': hausdorff_95_scores, 
                         'masd_scores': masd_scores, 
                         'assd_scores': assd_scores,
+                        'iou_scores_no_thres': iou_scores_no_thres,
+                        'dice_scores_no_thres': dice_scores_no_thres,
                     }))
                     segmentation_metrics.append(pd.DataFrame({
                         'thres': map(lambda x: f'{x:.3f}', thresholds), 
@@ -244,43 +265,44 @@ if __name__=='__main__':
                             seg_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
 
 
+            (results_dir / f'{model_name}').mkdir(exist_ok=True)
 
             det_data = pd.DataFrame(data=det_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-            det_data.to_csv(results_dir / f'{model_name}_stiched_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
+            det_data.to_csv(results_dir / f'{model_name}' / f'stiched_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
             seg_data = pd.DataFrame(data=seg_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-            seg_data.to_csv(results_dir / f'{model_name}_stiched_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
+            seg_data.to_csv(results_dir / f'{model_name}' / f'stiched_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
             mean_metrics = det_data.groupby('thres', as_index=False).mean()
-            mean_metrics.to_csv(results_dir / f'{model_name}_stiched_detection_mean_metrics_{str(ds)}_{ds.split}.csv', index=False)
+            mean_metrics.to_csv(results_dir / f'{model_name}' / f'stiched_detection_mean_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
             mean_metrics = seg_data.groupby('thres', as_index=False).mean()
-            mean_metrics.to_csv(results_dir / f'{model_name}_stiched_segmentation_mean_metrics_{str(ds)}_{ds.split}.csv', index=False)
+            mean_metrics.to_csv(results_dir / f'{model_name}' / f'stiched_segmentation_mean_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
             print('With stitching:\n', det_data.groupby('thres').mean())
 
             detection_mAP = pd.DataFrame(data=detection_mAP, columns=iou_thres)
-            detection_mAP.to_csv(results_dir / f'{model_name}_detection_AP_{str(ds)}_{ds.split}.csv', index=False)
-            detection_mAP.mean().to_csv(results_dir / f'{model_name}_mean_detection_AP_{str(ds)}_{ds.split}.csv', index=False)
+            detection_mAP.to_csv(results_dir / f'{model_name}' / f'detection_AP_{str(ds)}_{ds.split}.csv', index=False)
+            detection_mAP.mean().to_csv(results_dir / f'{model_name}' / f'mean_detection_AP_{str(ds)}_{ds.split}.csv', index=False)
 
             detection_metrics = pd.concat(detection_metrics, axis=0)
-            detection_metrics.to_csv(results_dir / f'{model_name}_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
+            detection_metrics.to_csv(results_dir / f'{model_name}' / f'detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
             mean_metrics = detection_metrics.groupby('thres', as_index=False).mean()
-            mean_metrics.to_csv(results_dir / f'{model_name}_mean_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
+            mean_metrics.to_csv(results_dir / f'{model_name}' / f'mean_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
             res = mAP_metric.compute()
             mAP_metric.reset()
-            with open(results_dir / f'{model_name}_mean_detection_torch_mAP_{str(ds)}_{ds.split}.csv', 'w') as f:
+            with open(results_dir / f'{model_name}' / f'mean_detection_torch_mAP_{str(ds)}_{ds.split}.csv', 'w') as f:
                 json.dump({k: v.item() for k, v in res.items()}, f)
 
             if len(segmentation_mAP) > 0:
                 segmentation_mAP = pd.concat(segmentation_mAP, axis=0)
-                segmentation_mAP.to_csv(results_dir / f'{model_name}_segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
+                segmentation_mAP.to_csv(results_dir / f'{model_name}' / f'segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
                 mean_metrics = segmentation_mAP.groupby('iou_thres', as_index=False).mean()
-                mean_metrics.to_csv(results_dir / f'{model_name}_mean_segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
+                mean_metrics.to_csv(results_dir / f'{model_name}' / f'mean_segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
 
                 segmentation_metrics = pd.concat(segmentation_metrics, axis=0)
-                segmentation_metrics.to_csv(results_dir / f'{model_name}_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
+                segmentation_metrics.to_csv(results_dir / f'{model_name}' / f'segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
                 mean_metrics = segmentation_metrics.groupby('thres', as_index=False).mean()
-                mean_metrics.to_csv(results_dir / f'{model_name}_mean_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
+                mean_metrics.to_csv(results_dir / f'{model_name}' / f'mean_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
 

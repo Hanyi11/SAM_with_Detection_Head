@@ -28,7 +28,7 @@ if path_detr not in sys.path:
 from detr.datasets import coco
 
 
-def compute_weights(metadata: pd.DataFrame, groups, max_oversampling = 10.0, max_ratio_0_objects=0.05):
+def compute_weights_working(metadata: pd.DataFrame, groups, max_oversampling = 10.0, max_ratio_0_objects=0.05):
     """
     Compute per-sample weights for a dataset, balancing multiple subgroups of data.
 
@@ -84,6 +84,80 @@ def compute_weights(metadata: pd.DataFrame, groups, max_oversampling = 10.0, max
     assert weight_zero_objects / total_weight <= max_ratio_0_objects + 1e-3, weight_zero_objects / total_weight
 
     return w
+
+
+
+def compute_weights(metadata: pd.DataFrame, groups, max_oversampling = 10.0, max_ratio_0_objects=0.05, weight_open_images=0.5):
+    """
+    Compute per-sample weights for a dataset, balancing multiple subgroups of data.
+
+    The subgroups are determined as unique value combinations of the variables in 'groups', e.g.
+    if groups = ['dataset', 'patch_size'], then data from NeurIPS_train with patchsize 2048 would 
+    be sampled equally often as data from OrgaSegment_train with patchsize 512.
+
+    Args:
+        metadata (pd.DataFrame): 
+            Contains the following columns, and each row is one available datapoint: ('dataset', 'n_objects', 'n_objects_grouped', 'patch_size')
+        groups (list[str] | None): 
+            Keys for determining unique groups for weighting. 'None' means equal weight for all datapoints.
+        max_oversampling (float):
+            Specifies how much any sample weight may be maximally increased compared to the default weight.
+
+    Returns:
+        np.ndarray: 
+            A NumPy array of weights for each sample in the dataset. The weights are normalized within each subset.
+    """
+    print("start compute weights")
+    total_length = len(metadata)
+    max_weight = max_oversampling / total_length
+
+    # Initialize with equal weight for all points.
+    w = np.ones(len(metadata), dtype=float) / total_length
+
+    # Assign weight Open Images
+    total_available_weight = 1.0
+    if np.any(metadata[['dataset']] == 'open_images'):
+        print(f"\n\nFound Open Images samples in the data, assigning weight {weight_open_images}\n\n")
+        is_oi = (metadata[['dataset']]=='open_images').values.flatten()
+        is_not_oi = (metadata[['dataset']]!='open_images').values.flatten()
+        oi_ids = metadata.loc[is_oi, ['idx']].values.tolist()
+        other_ids = metadata.loc[is_not_oi, ['idx']].values.tolist()
+        w[oi_ids] = weight_open_images / len(oi_ids)
+        w[other_ids] = (1 - weight_open_images) / len(other_ids)
+        total_available_weight = 1 - weight_open_images
+
+    if groups is None:
+        return w
+
+    # Each group outside Open Images gets the same total weight and distributes it equally between its members.
+    is_not_oi = (metadata[['dataset']]!='open_images').values.flatten()
+    metadata_wo_oi = metadata.loc[is_not_oi, :]
+    grouped_metadata = metadata_wo_oi.groupby(groups, as_index=False)
+    n_groups = len(grouped_metadata)
+    total_weight_per_group = total_available_weight / n_groups
+
+    for name, df in grouped_metadata:
+        weight = total_weight_per_group / len(df)
+        ids = df[['idx']].values.tolist()
+        w[ids] = weight
+        print(name, 'weight', weight)
+
+    # Enforce max weight:
+    w = np.minimum(w, max_weight)
+
+    total_weight = np.sum(w)
+    zero_objects = (metadata[['n_objects']].values == 0).flatten()
+    weight_zero_objects = np.sum(w[zero_objects])
+    if weight_zero_objects / total_weight > max_ratio_0_objects:
+        w[zero_objects] = w[zero_objects] * (max_ratio_0_objects / (1-max_ratio_0_objects)) * (total_weight - weight_zero_objects) / weight_zero_objects
+
+    # Check that calculations were correct
+    total_weight = np.sum(w)
+    weight_zero_objects = np.sum(w[zero_objects])
+    assert weight_zero_objects / total_weight <= max_ratio_0_objects + 1e-3, weight_zero_objects / total_weight
+
+    return w
+
 
 
 def collate_fn(batch):

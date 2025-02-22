@@ -20,6 +20,9 @@ import geopandas as gpd
 import basicpy
 import torchmetrics.detection
 
+import warnings
+warnings.filterwarnings("ignore", "You are using `torch.load` with `weights_only=False`*.")
+
 
 import sys
 sys.path.append('/home/icb/lion.gleiter/projects/organoid_sam/SAM_with_Detection_Head')
@@ -126,14 +129,14 @@ if __name__=='__main__':
 
     for model_version, model in [
         # ('gt_sam1', GroundTruthSAM(sam_version='sam1', box_noise_std=0, box_noise_bias=0)),
-        ('gt_sam2', GroundTruthSAM(sam_version='sam2', box_noise_std=0, box_noise_bias=0)),
+        # ('gt_sam2', GroundTruthSAM(sam_version='sam2', box_noise_std=0, box_noise_bias=0)),
     ]:
         for model_ext, std, bias in [
-            # ('sd_0_bias_0', 0, 0),
-            # ('sd_1_bias_0', 1, 0),
-            # ('sd_2_bias_0', 2, 0),
-            # ('sd_3_bias_0', 3, 0),
-            # ('sd_4_bias_0', 4, 0),
+            ('sd_0_bias_0', 0, 0),
+            ('sd_1_bias_0', 1, 0),
+            ('sd_2_bias_0', 2, 0),
+            ('sd_3_bias_0', 3, 0),
+            ('sd_4_bias_0', 4, 0),
             ('sd_5_bias_0', 5, 0),
             ('sd_1_bias_1', 1, 1),
             ('sd_2_bias_2', 2, 2),
@@ -159,6 +162,11 @@ if __name__=='__main__':
                 # dl.Tellu(split='test'),
                 # dl.MultiOrg(split='test_normal'),
             ]):
+            
+                if (results_dir / f'{model_name}' / f'mean_segmentation_metrics_{str(ds)}_{ds.split}.csv').exists():
+                    continue
+
+
                 detection_mAP = []
                 segmentation_mAP = []
                 detection_metrics = []
@@ -226,7 +234,7 @@ if __name__=='__main__':
                     if (gt_mask is not None) and evaluate_segmentation:
                         gt_masks = pp.convert_mask_to_binary(gt_mask)
                         iou_matrix_seg = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=gt_masks)
-                        mAP_scores, hausdorff_scores, hausdorff_95_scores, masd_scores, assd_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_segmentation_all(
+                        mAP_scores, hausdorff_scores, hausdorff_95_scores, masd_scores, assd_scores, iou_scores_no_thres, dice_scores_no_thres, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_segmentation_all(
                             iou_matrix_seg, iou_thres, scores, thresholds, gt_masks, contours
                         )
 
@@ -237,6 +245,8 @@ if __name__=='__main__':
                             'hausdorff_95_scores': hausdorff_95_scores, 
                             'masd_scores': masd_scores, 
                             'assd_scores': assd_scores,
+                            'iou_scores_no_thres': iou_scores_no_thres,
+                            'dice_scores_no_thres': dice_scores_no_thres,
                         }))
                         segmentation_metrics.append(pd.DataFrame({
                             'thres': map(lambda x: f'{x:.3f}', thresholds), 
@@ -268,41 +278,41 @@ if __name__=='__main__':
                 (results_dir / f'{model_name}').mkdir(exist_ok=True)
 
                 det_data = pd.DataFrame(data=det_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-                det_data.to_csv(results_dir / f'{model_name}' / 'stiched_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
+                det_data.to_csv(results_dir / f'{model_name}' / f'stiched_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
                 seg_data = pd.DataFrame(data=seg_data, columns=["thres", "pq", "f1_score", "precision", "recall", "iou"])
-                seg_data.to_csv(results_dir / f'{model_name}' / 'stiched_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
+                seg_data.to_csv(results_dir / f'{model_name}' / f'stiched_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
                 mean_metrics = det_data.groupby('thres', as_index=False).mean()
-                mean_metrics.to_csv(results_dir / f'{model_name}' / 'stiched_detection_mean_metrics_{str(ds)}_{ds.split}.csv', index=False)
+                mean_metrics.to_csv(results_dir / f'{model_name}' / f'stiched_detection_mean_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
                 mean_metrics = seg_data.groupby('thres', as_index=False).mean()
-                mean_metrics.to_csv(results_dir / f'{model_name}' / 'stiched_segmentation_mean_metrics_{str(ds)}_{ds.split}.csv', index=False)
+                mean_metrics.to_csv(results_dir / f'{model_name}' / f'stiched_segmentation_mean_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
                 print('With stitching:\n', det_data.groupby('thres').mean())
 
                 detection_mAP = pd.DataFrame(data=detection_mAP, columns=iou_thres)
-                detection_mAP.to_csv(results_dir / f'{model_name}' / 'detection_AP_{str(ds)}_{ds.split}.csv', index=False)
-                detection_mAP.mean().to_csv(results_dir / f'{model_name}' / 'mean_detection_AP_{str(ds)}_{ds.split}.csv', index=False)
+                detection_mAP.to_csv(results_dir / f'{model_name}' / f'detection_AP_{str(ds)}_{ds.split}.csv', index=False)
+                detection_mAP.mean().to_csv(results_dir / f'{model_name}' / f'mean_detection_AP_{str(ds)}_{ds.split}.csv', index=False)
 
                 detection_metrics = pd.concat(detection_metrics, axis=0)
-                detection_metrics.to_csv(results_dir / f'{model_name}' / 'detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
+                detection_metrics.to_csv(results_dir / f'{model_name}' / f'detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
                 mean_metrics = detection_metrics.groupby('thres', as_index=False).mean()
-                mean_metrics.to_csv(results_dir / f'{model_name}' / 'mean_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
+                mean_metrics.to_csv(results_dir / f'{model_name}' / f'mean_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
                 res = mAP_metric.compute()
                 mAP_metric.reset()
-                with open(results_dir / f'{model_name}' / 'mean_detection_torch_mAP_{str(ds)}_{ds.split}.csv', 'w') as f:
+                with open(results_dir / f'{model_name}' / f'mean_detection_torch_mAP_{str(ds)}_{ds.split}.csv', 'w') as f:
                     json.dump({k: v.item() for k, v in res.items()}, f)
 
                 if len(segmentation_mAP) > 0:
                     segmentation_mAP = pd.concat(segmentation_mAP, axis=0)
-                    segmentation_mAP.to_csv(results_dir / f'{model_name}' / 'segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
+                    segmentation_mAP.to_csv(results_dir / f'{model_name}' / f'segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
                     mean_metrics = segmentation_mAP.groupby('iou_thres', as_index=False).mean()
-                    mean_metrics.to_csv(results_dir / f'{model_name}' / 'mean_segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
+                    mean_metrics.to_csv(results_dir / f'{model_name}' / f'mean_segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
 
                     segmentation_metrics = pd.concat(segmentation_metrics, axis=0)
-                    segmentation_metrics.to_csv(results_dir / f'{model_name}' / 'segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
+                    segmentation_metrics.to_csv(results_dir / f'{model_name}' / f'segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
                     mean_metrics = segmentation_metrics.groupby('thres', as_index=False).mean()
-                    mean_metrics.to_csv(results_dir / f'{model_name}' / 'mean_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
+                    mean_metrics.to_csv(results_dir / f'{model_name}' / f'mean_segmentation_metrics_{str(ds)}_{ds.split}.csv', index=False)
 

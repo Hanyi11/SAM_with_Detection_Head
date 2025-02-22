@@ -7,38 +7,9 @@ from losses import SetCriterion
 
 
 
-# Models should have the following structure:
-
-# We need the following models:
-# Faster Rcnn
-# SSD
-# DETR
-# DETR our implementation
-
-# For all models, we need the ability to exchange the backbone with SAM / SAM2 features, Cellpose features 
-
-# normalized input (images / embeddings) -> [backbone -> adaptor Conv2D (2 layers, 1x1 or upsampling)] -> prediction and loss head 
-# backbone: 
-# - transformer (based on embeddings)
-# - SAM base ViT with LoRA finetuning (based on images)
-# - ResNet (Faster R-CNN v2)
-# - VGG16 (SSD)
-# - U-Net (Cellpose)
-# prediction and loss head:
-# - Faster R-CNN v2
-# - SSD
-# - DETR
-# - Centernet with convolutions
-# The prediction and loss head must implement the following methods:
-# in_features, in_dim_fixed [None or fixed dimension], in_dim_downscale_factor [downscale factor compared to input image]
-# forward_train(batch): -> total_loss, loss_dict, metrics_dict with key 'giou'
-# forward_eval(batch): -> total_loss, loss_dict, metrics_dict with key 'giou'
-# forward(images / embeddings): -> [{'boxes': boxes, 'scores': scores}]
-
-
 class DetectionTransformer(nn.Module):
     def __init__(self, 
-                 backbone,
+                 backbone_name,
                  set_cost_class: float = 1.0,
                  set_cost_bbox: float = 5.0,
                  set_cost_giou: float = 2.0,
@@ -47,7 +18,9 @@ class DetectionTransformer(nn.Module):
                  transformer_dim: int = 256,
                  nheads: int = 8,
                  dim_feedforward: int = 512,
-                 num_layers: int = 6,
+                 num_layers_low_res: int = 6,
+                 num_layers_medium_res: int = 0,
+                 num_layers_high_res: int = 0,
                  dropout: float = 0.1,
                  pre_norm: bool = True,
                  bbox_loss_coef: float = 5.0,
@@ -57,10 +30,13 @@ class DetectionTransformer(nn.Module):
                  **kwargs
                 ):
         super().__init__()
-        self.backbone = backbone
-        self.in_features = transformer_dim  # Expected number of features of the backbone output
-        self.in_dim_fixed = None  # Arbitrary width / height possible as output of the backbone
-        self.adaptor = nn.Conv2d(backbone.num_channels, self.in_features, kernel_size=1)
+        self.backbone_name = backbone_name
+        self.num_layers_low_res = num_layers_low_res
+        self.num_layers_medium_res = num_layers_medium_res
+        self.num_layers_high_res = num_layers_high_res
+        self.backbone = nn.Identity()
+
+        self.activation = nn.ReLU()
 
         # Define matcher and loss here
         self.matcher = HungarianMatcher(cost_class=set_cost_class, cost_bbox=set_cost_bbox, cost_giou=set_cost_giou)
@@ -69,7 +45,7 @@ class DetectionTransformer(nn.Module):
         
         if aux_loss:
             aux_weight_dict = {}
-            for i in range(num_layers - 1):
+            for i in range(num_layers_low_res - 1):
                 aux_weight_dict.update({k + f'_{i}': v for k, v in weight_dict.items()})
             weight_dict.update(aux_weight_dict)
 
@@ -85,66 +61,192 @@ class DetectionTransformer(nn.Module):
         self.num_queries = num_queries
         self.query_embed = nn.Embedding(num_queries, transformer_dim)
 
+
         # Define positional embedding
         N_steps = transformer_dim // 2
         self.position_embedding = PositionEmbeddingSine(N_steps, normalize=True)
+
+
+        # Convert concatenated low res features to transformer dim
+        if self.backbone_name == 'FM_concat':
+            self.low_res_feature_adaptor = nn.Conv2d(512, transformer_dim, kernel_size=1)
 
         # Define the transformer module
         self.transformer_decoder = TransformerDecoder(
             transformer_dim=transformer_dim,
             nheads=nheads,
-            num_layers=num_layers,
+            num_layers=num_layers_low_res,
             dim_feedforward=dim_feedforward,
             dropout=dropout,
             pre_norm=pre_norm,
             return_intermediate=aux_loss, # if use auxiliary loss, must return intermediate outputs
         )
 
-        self.class_embed = nn.Linear(transformer_dim, 2) # Binary classification: Object or No object
-        self.bbox_embed = MLP(transformer_dim, transformer_dim, 4, 3)
+
+        
+        if (self.backbone_name == 'SAM_large') or (
+            (self.num_layers_medium_res == 0) and 
+            (self.num_layers_high_res == 0)
+        ):
+            assert self.num_layers_medium_res == 0, self.num_layers_medium_res
+            assert self.num_layers_high_res == 0, self.num_layers_high_res
+            self.class_embed = nn.Linear(transformer_dim, 2) # Binary classification: Object or No object
+            self.bbox_embed = MLP(transformer_dim, transformer_dim, 4, 3)
+
+        elif self.backbone_name in ['SAM2_large', 'FM_concat']:
+            self.low2medium_res = nn.Linear(transformer_dim, 64)
+
+            if self.num_layers_medium_res > 0:
+                transformer_dim_medium = 64
+                self.position_embedding_medium = PositionEmbeddingSine(transformer_dim_medium // 2, normalize=True)
+                self.transformer_decoder_medium = TransformerDecoder(
+                    transformer_dim=transformer_dim_medium,
+                    nheads=4,
+                    num_layers=num_layers_medium_res,
+                    dim_feedforward=dim_feedforward,
+                    dropout=dropout,
+                    pre_norm=pre_norm,
+                    return_intermediate=False,
+                )
+
+            self.medium2high_res = nn.Linear(64, 32)
+
+            if self.num_layers_high_res > 0:
+                transformer_dim_high = 32
+                self.position_embedding_high = PositionEmbeddingSine(transformer_dim_high // 2, normalize=True)
+                self.transformer_decoder_high = TransformerDecoder(
+                    transformer_dim=transformer_dim_high,
+                    nheads=2,
+                    num_layers=num_layers_high_res,
+                    dim_feedforward=dim_feedforward,
+                    dropout=dropout,
+                    pre_norm=pre_norm,
+                    return_intermediate=False,
+                )
+
+            self.class_embed = nn.Linear(32, 2) # Binary classification: Object or No object
+            self.bbox_embed = MLP(32, transformer_dim, 4, 3)
+        else:
+            raise ValueError(self.backbone_name)
+
 
         self.aux_loss = aux_loss  # Ensure aux_loss is stored
+
 
     def _set_aux_loss(self, outputs_class, outputs_coord):
         return [{'pred_logits': a, 'pred_boxes': b} for a, b in zip(outputs_class[:-1], outputs_coord[:-1])]
 
+
     def forward(self, image_embeddings):
+        """Predicts boxes and scores for a batch of image embeddings
+
+        Args:
+            image_embeddings:
+                For SAM_large: a torch.Tensor of shape [B, 256, 64, 64].
+                For SAM2_large: a tuple of 3 torch.Tensors of shape [B, 256, 64, 64], [B, 64, 128, 128], [B, 32, 256, 256].
+                For FM_concat: a tuple of 3 torch.Tensors of shape [B, 512, 64, 64], [B, 64, 128, 128], [B, 32, 256, 256].
+        """
         output = self.forward_images(image_embeddings)
 
         boxes = output['pred_boxes']
         scores = output['pred_logits'].softmax(dim=-1)
         scores = scores[:, :, 0]  # class 0 is organoids, 1 is background
+        labels = torch.zeros(scores.shape, dtype=torch.int64, device=scores.device)
+
+        # Transform boxes:  [cy cx h w] in [0, 1] range  -->  [x y x y] in [0, 1024] px
+        boxes = torch.stack([
+            boxes[:, :, 1] - (boxes[:, :, 3] / 2),
+            boxes[:, :, 0] - (boxes[:, :, 2] / 2),
+            boxes[:, :, 1] + (boxes[:, :, 3] / 2),
+            boxes[:, :, 0] + (boxes[:, :, 2] / 2),
+        ], dim=2) * 1024
 
         predictions = []
         for batch_idx in range(scores.shape[0]):
             predictions.append({'scores': scores[batch_idx],
-                                'boxes': boxes[batch_idx]})
+                                'boxes': boxes[batch_idx],
+                                'labels': labels[batch_idx]})
 
         return predictions
 
-        # TODO: (filter positive predictions,) convert logits to scores and create a list[dict]
+    def forward_images(self, image_embeddings: torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]):
+        if self.backbone_name=='SAM_large':
+            low_res_feats = image_embeddings
+        elif self.backbone_name=='SAM2_large':
+            assert isinstance(image_embeddings, list), type(image_embeddings)
+            low_res_feats = image_embeddings[0]
+            medium_res_feats = image_embeddings[1]
+            high_res_feats = image_embeddings[2]
+        elif self.backbone_name=='FM_concat':
+            assert isinstance(image_embeddings, list), type(image_embeddings)
+            low_res_feats = self.activation(self.low_res_feature_adaptor(image_embeddings[0]))
+            medium_res_feats = image_embeddings[1]
+            high_res_feats = image_embeddings[2]
+        else:
+            raise ValueError(self.backbone_name)
 
+        device = low_res_feats.device
+        batch_size = low_res_feats.size(0)
 
-    def forward_images(self, image_embeddings: torch.Tensor):
-        device = image_embeddings.device
-        batch_size = image_embeddings.size(0)
-
-        # Transformer input
+        # Low resolution transformer input
         query_embedding = self.query_embed.weight.to(device)
-        pos_embedding = self.position_embedding(image_embeddings) # bs x 256 x 64 x 64
-        
         query_embedding = query_embedding.unsqueeze(0).expand(batch_size, -1, -1) # Add batch dimension and expand
-
         target = torch.zeros_like(query_embedding) # bs x num_queries x transformer_dim (256)
-        image_embeddings = image_embeddings.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
+
+        pos_embedding = self.position_embedding(low_res_feats) # bs x 256 x 64 x 64
         pos_embedding = pos_embedding.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
+        low_res_feats = low_res_feats.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
 
         # Use the transformer module
-        target = self.transformer_decoder(target, query_embedding, image_embeddings, pos_embedding)
+        target = self.transformer_decoder(target, query_embedding, low_res_feats, pos_embedding)
+
+        if self.aux_loss:
+            target_aux = target[:-1]
+            target = target[-1]
+
+        if (self.backbone_name == 'SAM_large') or ((self.num_layers_medium_res == 0) and 
+                                                   (self.num_layers_high_res == 0)):
+            pass
+        elif self.backbone_name in ['SAM2_large', 'FM_concat']:
+            # Proceed decoding with medium and high res features
+            target = self.activation(self.low2medium_res(target))
+            query_embedding = self.activation(self.low2medium_res(query_embedding))
+            if self.aux_loss:
+                target_aux = self.activation(self.low2medium_res(target_aux))
+            if self.num_layers_medium_res > 0:
+                pos_embedding = self.position_embedding_medium(medium_res_feats) # bs x 256 x 64 x 64
+                pos_embedding = pos_embedding.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
+                medium_res_feats = medium_res_feats.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
+                target = self.transformer_decoder_medium(target, query_embedding, medium_res_feats, pos_embedding)
+                target = target.squeeze(0)
+                
+            target = self.activation(self.medium2high_res(target))
+            query_embedding = self.activation(self.medium2high_res(query_embedding))
+            if self.aux_loss:
+                target_aux = self.activation(self.medium2high_res(target_aux))
+            if self.num_layers_high_res > 0:
+                pos_embedding = self.position_embedding_high(high_res_feats) # bs x 256 x 64 x 64
+                pos_embedding = pos_embedding.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
+                high_res_feats = high_res_feats.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
+                # print('\n\n target.shape', target.shape, '\n\n')
+                # print('\n\n query_embedding.shape', query_embedding.shape, '\n\n')
+                # print('\n\n high_res_feats.shape', high_res_feats.shape, '\n\n')
+                # print('\n\n pos_embedding.shape', pos_embedding.shape, '\n\n')
+                target = self.transformer_decoder_high(target, query_embedding, high_res_feats, pos_embedding)
+                target = target.squeeze(0)
+        else:
+            raise ValueError(self.backbone_name)
+        
+        if self.aux_loss:
+            target = torch.cat([target_aux, target.unsqueeze(0)], dim=0)
 
         # Feed transformer output into MLP to get class and bbox
         outputs_class = self.class_embed(target)
-        outputs_coord = self.bbox_embed(target).sigmoid()
+        bbox_logits = self.bbox_embed(target)
+        # print('outputs_class', outputs_class)
+        # print('bbox_logits', bbox_logits)
+        outputs_coord = bbox_logits.sigmoid()  # [cy cx h w] in [0, 1] range
+
         # print('class and coord shapes', outputs_class.shape, outputs_coord.shape)  # [1, 1, 100, 2], [1, 1, 100, 4]
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
         if self.aux_loss:
@@ -152,23 +254,35 @@ class DetectionTransformer(nn.Module):
         return out
 
     def forward_batch(self, batch):
-        image_embedding, targets = batch
-        device = image_embedding.device
+        image_embedding, targets = batch[0], batch[1]
 
-        # forward
+        # Forward
         outputs = self.forward_images(image_embedding)
         
         # Process targets: filter out all-zero entries and create dictionary
         # targets are bounding boxes of shape [bs x num_queries x 4]
         processed_targets = []
         for target in targets:
-            non_zero_indices = ~(target != 0).all(axis=1)
-            filtered_boxes = target[non_zero_indices].to(device)
+            boxes = target['boxes']
+            labels = target['labels']
+            non_zero_indices = (boxes > -0.5).any(axis=1)
+            # device = boxes.device
+            
+            # Transform boxes:  [x y x y] in [0, 1024] px  -->  [cy cx h w] in [0, 1] range
+            boxes = torch.stack([
+                (boxes[:, 1] + boxes[:, 3]) / 2,
+                (boxes[:, 0] + boxes[:, 2]) / 2,
+                boxes[:, 3] - boxes[:, 1],
+                boxes[:, 2] - boxes[:, 0],
+            ], dim=1) / 1024
+
+            filtered_boxes = boxes[non_zero_indices]#.to(device)
+            filtered_labels = labels[non_zero_indices]#.to(device)
             num_boxes = filtered_boxes.size(0)
-            print('num_boxes', num_boxes)
+            # print('num_boxes', num_boxes)
             processed_targets.append({
                 'boxes': filtered_boxes,
-                'labels': torch.zeros(num_boxes, dtype=torch.int64, device=device)  # Here, labels are 0 = ground truth, 1 = no object
+                'labels': filtered_labels.to(dtype=torch.int64)  # Here, labels are 0 = ground truth, 1 = no object
             })
         
         # Loss
@@ -183,10 +297,12 @@ class DetectionTransformer(nn.Module):
         giou = giou.detach().cpu()
 
         return total_loss, loss_dict, {'giou': giou}
+    
 
     def forward_train(self, batch):
         self.train()
         return self.forward_batch(batch)
+    
     
     def forward_eval(self, batch):
         self.eval()

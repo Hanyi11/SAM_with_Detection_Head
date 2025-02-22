@@ -4,7 +4,7 @@ defaults:
 
 # Model configuration
 decoder: "DETR_own_implementation"
-backbone_name: "default"
+backbone_name: "FM_concat"
 
 # # Learning rate and optimizer parameters
 # learning_rate: 1e-4
@@ -29,9 +29,9 @@ transformer_dim: 256
 dropout: 0.1
 nheads: 8
 dim_feedforward: 512
-num_layers_low_res: 6
-num_layers_medium_res: 0
-num_layers_high_res: 0
+num_layers_low_res: 11
+num_layers_medium_res: 6
+num_layers_high_res: 4
 pre_norm: true
 gradient_clip_val: 0.1
 

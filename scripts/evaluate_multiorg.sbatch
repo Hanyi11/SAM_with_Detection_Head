@@ -4,7 +4,7 @@
 #SBATCH -o /ictstr01/groups/shared/users/lion.gleiter/organoid_sam/logs/slurm/%x/%j_output.log
 #SBATCH -e /ictstr01/groups/shared/users/lion.gleiter/organoid_sam/logs/slurm/%x/%j_error.log
 
-#SBATCH --qos gpu_normal  
+#SBATCH --qos gpu_preemptible  # gpu_normal  
 # #SBATCH --qos gpu_long
 #SBATCH --partition gpu_p
 
@@ -30,6 +30,6 @@ source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 # python scripts/evaluate_multiorg.py
 # python scripts/evaluate_other_testsets.py
 
-# python scripts/evaluate_all_testsets.py
+# python scripts/evaluate_all_testsets_from_saved_files.py
+python scripts/evaluate_all_testsets.py
 # python scripts/evaluate_sam_segmentation_with_gt.py
-python scripts/evaluate_all_testsets_from_saved_files.py

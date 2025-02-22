@@ -4,7 +4,7 @@ defaults:
 
 # Model configuration
 decoder: "DETR_own_implementation"
-backbone_name: "default"
+backbone_name: "SAM_large"
 
 # # Learning rate and optimizer parameters
 # learning_rate: 1e-4
