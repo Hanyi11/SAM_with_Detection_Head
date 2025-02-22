@@ -201,6 +201,11 @@ if __name__=='__main__':
                                                                 predict_masks=evaluate_segmentation or evaluate_with_stitching)
 
                 # Detection
+                mAP_metric.update(preds=[{'boxes': torch.from_numpy(boxes), 
+                                        'scores': torch.from_numpy(scores), 
+                                        'labels': torch.zeros(scores.shape, dtype=torch.int)}], 
+                                target=[{'boxes': torch.from_numpy(gt_boxes), 
+                                        'labels': torch.zeros((gt_boxes.shape[0],), dtype=torch.int)}])
                 iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
                 mAP_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_detection_all(
                     iou_matrix, iou_thres, scores, thresholds
@@ -215,11 +220,6 @@ if __name__=='__main__':
                     'precision': prec_scores,
                     'recall': recall_scores, 
                 }))
-                mAP_metric.update(preds=[{'boxes': torch.from_numpy(boxes), 
-                                        'scores': torch.from_numpy(scores), 
-                                        'labels': torch.zeros(scores.shape, dtype=torch.int)}], 
-                                target=[{'boxes': torch.from_numpy(gt_boxes), 
-                                        'labels': torch.zeros((gt_boxes.shape[0],), dtype=torch.int)}])
                 
                 # Visualize with threshold 0.5
                 if mAP_scores[0] < save_below_AP:

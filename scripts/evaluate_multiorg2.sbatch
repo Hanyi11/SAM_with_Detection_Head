@@ -30,6 +30,6 @@ source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 # python scripts/evaluate_multiorg.py
 # python scripts/evaluate_other_testsets.py
 
-python scripts/evaluate_all_testsets.py
-python scripts/evaluate_sam_segmentation_with_gt.py
-# python scripts/evaluate_all_testsets_from_saved_files.py
+# python scripts/evaluate_all_testsets.py
+# python scripts/evaluate_sam_segmentation_with_gt.py
+python scripts/evaluate_all_testsets_from_saved_files.py

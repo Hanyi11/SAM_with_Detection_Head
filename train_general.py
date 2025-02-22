@@ -184,8 +184,8 @@ def train(args) -> None:
             assert args.checkpoint_path.exists(), args.checkpoint_path
 
     if (args.checkpoint_path is not None) and (args.checkpoint_path != ""):
-        # Load the pre-trained checkpoint
-        model = model.__class__.load_from_checkpoint(args.checkpoint_path, **args)
+        # Load the pre-trained checkpoint 
+        model = model.__class__.load_from_checkpoint(**args)  # (args already contains the keyword checkpoint_path)
 
 
     # Logging

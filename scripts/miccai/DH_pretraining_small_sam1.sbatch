@@ -6,8 +6,8 @@
 
 ### ---------- GPU ----------
 # #SBATCH --exclude=supergpu17
-#SBATCH --qos gpu_normal 
-# #SBATCH --qos gpu_preemptible 
+# #SBATCH --qos gpu_normal 
+#SBATCH --qos gpu_preemptible 
 #SBATCH --partition gpu_p
 
 #SBATCH --gres=gpu:1
@@ -30,4 +30,7 @@ nvidia-smi
 conda deactivate
 source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
-python train_general.py +baseline_models=detr_own_sam1_small_head sub_name="DETR_own_SAM1_small_head_pretraining" sampling_groups=["n_objects"] seed=2024 train_dirs=["open_images_v4_5/original_data","NeurIPSCellSeg_train"] val_dirs=["NeurIPSCellSeg_val"]
+# python train_general.py +baseline_models=detr_own_sam1_small_head sub_name="DETR_own_SAM1_small_head_pretraining" sampling_groups=["n_objects"] seed=2024 train_dirs=["open_images_v4_5/original_data","NeurIPSCellSeg_train"] val_dirs=["NeurIPSCellSeg_val"]
+# python train_general.py +baseline_models=detr_own_sam1_small_head sub_name="DETR_own_SAM1_small_head_pretraining_stage2" sampling_groups=["n_objects"] seed=2024 train_dirs=["open_images_v4_5/original_data","NeurIPSCellSeg_train"] val_dirs=["NeurIPSCellSeg_val"] checkpoint_path="DETR_own_implementation_SAM_large_open_images_v4_5_original_data_NeurIPSCellSeg_train_DETR_own_SAM1_small_head_pretraining_True_4_400_2024-last.ckpt"
+python train_general.py +baseline_models=detr_own_sam1_small_head sub_name="DETR_own_SAM1_small_head_pretraining_only_neurips" sampling_groups=["n_objects"] seed=2024 train_dirs=["NeurIPSCellSeg_train"] val_dirs=["NeurIPSCellSeg_val"]
+# python train_general.py +baseline_models=detr_own_sam1_small_head sub_name="DETR_own_SAM1_small_head_pretraining_only_neurips_fixed_lr" sampling_groups=["n_objects"] seed=2024 train_dirs=["NeurIPSCellSeg_train"] val_dirs=["NeurIPSCellSeg_val"] lr_drop=10000 learning_rate=1e-5

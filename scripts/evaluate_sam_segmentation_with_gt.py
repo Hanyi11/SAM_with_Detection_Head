@@ -1,23 +1,24 @@
-import io
+# import io
 import json
 import numpy as np
-import cv2
+# import cv2
 import pandas as pd
 from pathlib import Path
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from copy import deepcopy
-import skimage
-from skimage.io import imread
-from sklearn import metrics
-import scipy
-import basicpy
-import tifffile
+# import matplotlib.patches as patches
+import matplotlib.lines as mlines
+# from copy import deepcopy
+# import skimage
+# from skimage.io import imread
+# from sklearn import metrics
+# import scipy
+# import basicpy
+# import tifffile
 import torch
 from tqdm import tqdm
 # from descartes import PolygonPatch
 import geopandas as gpd
-import basicpy
+# import basicpy
 import torchmetrics.detection
 
 import warnings
@@ -30,10 +31,10 @@ sys.path.append('/home/icb/lion.gleiter/projects/organoid_sam/SAM_with_Detection
 from util.box_ops_numpy import mask_to_boxes, cxcywh_to_xyxy, xyxy_to_cxcywh, plot_boxes
 from util import dataloading as dl
 from util import postprocessing as pp
-from util.samos import SAMOS
-from util.ssd import SSDPredictor
-from util.FasterRCNN import FasterRCNNPredictor
-from util.cellpose import Cellpose
+# from util.samos import SAMOS
+# from util.ssd import SSDPredictor
+# from util.FasterRCNN import FasterRCNNPredictor
+# from util.cellpose import Cellpose
 from util.gt_sam import GroundTruthSAM
 
 base_datadir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/original_data/')
@@ -121,7 +122,7 @@ if __name__=='__main__':
     fixed_patch_size = (512, 2048)  # If None, uses 4 patches per image and adjusts their size correspondingly.
     evaluate_with_stitching = False  # should be False with the new training
     evaluate_segmentation = True  # can be False with the new training, might speed up evaluation?
-    save_below_AP = 0.5
+    save_below_AP = 0.8
 
     # Metrics
     mAP_metric = torchmetrics.detection.MeanAveragePrecision(class_metrics=True, extended_summary=False, backend='faster_coco_eval')
@@ -129,16 +130,16 @@ if __name__=='__main__':
 
     for model_version, model in [
         # ('gt_sam1', GroundTruthSAM(sam_version='sam1', box_noise_std=0, box_noise_bias=0)),
-        # ('gt_sam2', GroundTruthSAM(sam_version='sam2', box_noise_std=0, box_noise_bias=0)),
+        ('gt_sam2', GroundTruthSAM(sam_version='sam2', box_noise_std=0, box_noise_bias=0)),
     ]:
         for model_ext, std, bias in [
-            ('sd_0_bias_0', 0, 0),
-            ('sd_1_bias_0', 1, 0),
-            ('sd_2_bias_0', 2, 0),
-            ('sd_3_bias_0', 3, 0),
-            ('sd_4_bias_0', 4, 0),
-            ('sd_5_bias_0', 5, 0),
-            ('sd_1_bias_1', 1, 1),
+            # ('sd_0_bias_0', 0, 0),
+            # ('sd_1_bias_0', 1, 0),
+            # ('sd_2_bias_0', 2, 0),
+            # ('sd_3_bias_0', 3, 0),
+            # ('sd_4_bias_0', 4, 0),
+            # ('sd_5_bias_0', 5, 0),
+            # ('sd_1_bias_1', 1, 1),
             ('sd_2_bias_2', 2, 2),
             ('sd_3_bias_3', 3, 3),
             ('sd_4_bias_4', 4, 4),
@@ -150,6 +151,7 @@ if __name__=='__main__':
 
             for ds_idx, ds in enumerate([
                 # dl.MultiOrg(split='test_macros'),
+                dl.OrgaSegment(split='test'),
                 dl.OrganoID(split='test'),
                 dl.OrganoID(split='test_C'),
                 dl.OrganoID(split='test_Lung'),
@@ -157,7 +159,6 @@ if __name__=='__main__':
                 dl.OrganoID(split='test_only_mouse'),
                 # dl.OrgaExtractor(split='all'),
                 dl.NewData(split='all'),
-                dl.OrgaSegment(split='test'),
                 # dl.OrgaQuant(split='test'),
                 # dl.Tellu(split='test'),
                 # dl.MultiOrg(split='test_normal'),
@@ -197,6 +198,12 @@ if __name__=='__main__':
                                                                     predict_masks=evaluate_segmentation or evaluate_with_stitching)
 
                     # Detection
+                    mAP_metric.update(preds=[{'boxes': torch.from_numpy(boxes), 
+                                            'scores': torch.from_numpy(scores), 
+                                            'labels': torch.zeros(scores.shape, dtype=torch.int)}], 
+                                    target=[{'boxes': torch.from_numpy(gt_boxes), 
+                                            'labels': torch.zeros((gt_boxes.shape[0],), dtype=torch.int)}])
+                    
                     iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
                     mAP_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_detection_all(
                         iou_matrix, iou_thres, scores, thresholds
@@ -211,11 +218,6 @@ if __name__=='__main__':
                         'precision': prec_scores,
                         'recall': recall_scores, 
                     }))
-                    mAP_metric.update(preds=[{'boxes': torch.from_numpy(boxes), 
-                                            'scores': torch.from_numpy(scores), 
-                                            'labels': torch.zeros(scores.shape, dtype=torch.int)}], 
-                                    target=[{'boxes': torch.from_numpy(gt_boxes), 
-                                            'labels': torch.zeros((gt_boxes.shape[0],), dtype=torch.int)}])
                     
                     # Visualize with threshold 0.5
                     if mAP_scores[0] < save_below_AP:
@@ -248,6 +250,10 @@ if __name__=='__main__':
                             'iou_scores_no_thres': iou_scores_no_thres,
                             'dice_scores_no_thres': dice_scores_no_thres,
                         }))
+                        print("\n\n hausdorff_scores", hausdorff_scores, '\n\n', flush=True)
+                        print("\n\n masd_scores", masd_scores, '\n\n', flush=True)
+                        print("\n\n assd_scores", assd_scores, '\n\n', flush=True)
+                        # print("\n\n segmentation_mAP", segmentation_mAP[-1], '\n\n', flush=True)
                         segmentation_metrics.append(pd.DataFrame({
                             'thres': map(lambda x: f'{x:.3f}', thresholds), 
                             'pq': pq_scores,
@@ -258,21 +264,43 @@ if __name__=='__main__':
                             'recall': recall_scores, 
                         }))
 
+                        if mAP_scores[0] < 0.8:
+                            fig, ax = plt.subplots(1, 1, figsize=(10, 10), dpi=100)
+                            # i = 10
+                            # plot_boxes(im, gt_boxes[i:i+1], format='yxyx_px', ax=ax, color='blue')
+                            plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
+                            plot_boxes(im, boxes, format='yxyx_px', ax=ax, show_image=False, color='red')
 
-                    if evaluate_with_stitching:
-                        for thres in thresholds:
-                            contours, boxes, scores = model.set_threshold(conf_thres=thres, predict_masks=True)
+                            # Plot mask predictions
+                            for i in range(boxes.shape[0]):
+                                show_mask(contours[i], ax, random_color=True)
+
+                            # show_mask(contours_cellpose[i], ax, random_color=True)
+
+                            # Define custom line handles
+                            line_a = mlines.Line2D([], [], color='blue', label='Ground truth', linewidth=2)
+                            line_c = mlines.Line2D([], [], color='red', label='SSD', linewidth=2)
+
+                            # Add legend with custom handles
+                            plt.legend(handles=[line_a, line_c])
+                            plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_50_ap50_{mAP_scores[0]:.3f}_segmentation.png', dpi=200)
+                            plt.close('all')
+
+
+                    # if evaluate_with_stitching:
+                    #     for thres in thresholds:
+                    #         contours, boxes, scores = model.set_threshold(conf_thres=thres, predict_masks=True)
                             
-                            iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
-                            tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
-                                pp.compute_metrics_detection_from_iou_matrix(iou_matrix=iou_matrix)
-                            det_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
+                    #         iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
+                    #         tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
+                    #             pp.compute_metrics_detection_from_iou_matrix(iou_matrix=iou_matrix)
+                    #         det_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
                             
-                            if (gt_mask is not None) and evaluate_segmentation:
-                                iou_matrix = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=pp.convert_mask_to_binary(gt_mask))
-                                tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
-                                    pp.compute_metrics_segmentation_from_iou_matrix(iou_matrix=iou_matrix)
-                                seg_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
+                    #         if (gt_mask is not None) and evaluate_segmentation:
+                    #             iou_matrix = pp.compute_iou_matrix_segmentation_contours(contours, gt_masks=pp.convert_mask_to_binary(gt_mask))
+                    #             tp, fp, fn, pq, precision, recall, f1_score, mean_iou, dice = \
+                    #                 pp.compute_metrics_segmentation_from_iou_matrix(iou_matrix=iou_matrix)
+                    #             seg_data.append((f'{thres:4.2f}', pq, f1_score, precision, recall, mean_iou))
 
 
                 (results_dir / f'{model_name}').mkdir(exist_ok=True)
@@ -309,6 +337,7 @@ if __name__=='__main__':
                     segmentation_mAP = pd.concat(segmentation_mAP, axis=0)
                     segmentation_mAP.to_csv(results_dir / f'{model_name}' / f'segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
                     mean_metrics = segmentation_mAP.groupby('iou_thres', as_index=False).mean()
+                    print('mean_metrics', mean_metrics)
                     mean_metrics.to_csv(results_dir / f'{model_name}' / f'mean_segmentation_AP_{str(ds)}_{ds.split}.csv', index=False)
 
                     segmentation_metrics = pd.concat(segmentation_metrics, axis=0)

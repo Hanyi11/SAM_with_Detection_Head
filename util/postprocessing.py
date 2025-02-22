@@ -809,8 +809,11 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
     
     # Sort detections by confidence score (highest first)
     sorted_indices = np.argsort(-scores)
+
+    # original_pred_ids = np.arange(num_preds)
     iou_matrix = iou_matrix[sorted_indices]  # Reorder IoU matrix
     conf_scores = scores[sorted_indices]  # Reorder confidence scores
+    contours = [contours[i] for i in sorted_indices]  # Reorder contours
 
     # AP scores, segmentation metrics
     ap_scores = []
@@ -823,6 +826,7 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
     dice_scores_no_thres = []
     for iou_t in iou_thres:
         is_true_match, fns, pred_ids, gt_ids = greedy_matching(iou_matrix.copy(), iou_threshold=iou_t)
+        # print('pred_ids, gt_ids, is_true_match', pred_ids, gt_ids, is_true_match)
         rc = np.cumsum(is_true_match) / max(num_gts, 1)  # Recall
         pr = np.cumsum(is_true_match) / (np.arange(num_preds) + 1)  # Precision
         rc = rc[is_true_match]
@@ -841,6 +845,8 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
             pred_contour = contours[i]
             gt_mask = gt_masks[j]
             gt_contour = mask_to_contour(gt_mask)
+            # print('pred_contour', pred_contour)
+            # print('gt_contour', gt_contour)
             # hausdorff_contour.append(shapely.hausdorff_distance(pred_contour, gt_contour, densify=0.8))
 
             # IoU and dice
