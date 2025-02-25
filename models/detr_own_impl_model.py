@@ -28,6 +28,7 @@ class DetectionTransformer(nn.Module):
                  eos_coef: float = 0.1,
                  aux_loss: bool = False,
                  add_query_before_output = False,
+                 scale_bb_before_sigmoid = False,
                  **kwargs
                 ):
         super().__init__()
@@ -36,6 +37,7 @@ class DetectionTransformer(nn.Module):
         self.num_layers_medium_res = num_layers_medium_res
         self.num_layers_high_res = num_layers_high_res
         self.add_query_before_output = add_query_before_output
+        self.scale_bb_before_sigmoid = scale_bb_before_sigmoid
         self.backbone = nn.Identity()
 
         self.activation = nn.ReLU()
@@ -311,7 +313,10 @@ class DetectionTransformer(nn.Module):
 
         # print('outputs_class', outputs_class)
         # print('bbox_logits', bbox_logits)
-        outputs_coord = bbox_logits.sigmoid()  # [cy cx h w] in [0, 1] range
+        if self.scale_bb_before_sigmoid:
+            outputs_coord = (bbox_logits * 10).sigmoid()  # [cy cx h w] in [0, 1] range
+        else:
+            outputs_coord = bbox_logits.sigmoid()  # [cy cx h w] in [0, 1] range
 
         # print('class and coord shapes', outputs_class.shape, outputs_coord.shape)  # [1, 1, 100, 2], [1, 1, 100, 4]
         out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
