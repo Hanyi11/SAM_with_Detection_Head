@@ -57,6 +57,14 @@ def plot_boxes(image, boxes, format='cycxhw_01', color='red', ax=None, show_imag
     elif format=='yxyx_px':
         # boxes are in min/max coordinates in pixels. No conversion necessary.
         original_boxes = boxes
+    elif format=='xyxy_px':
+        # boxes are in min/max coordinates in pixels. No conversion necessary.
+        original_boxes = np.stack([
+            boxes[:, 1],
+            boxes[:, 0],
+            boxes[:, 3],
+            boxes[:, 2],
+        ], axis=1)
     else:
         raise ValueError(format)
 
@@ -76,7 +84,7 @@ def plot_boxes(image, boxes, format='cycxhw_01', color='red', ax=None, show_imag
         height = y_max - y_min
         
         # Create a rectangle patch
-        rect = patches.Rectangle((x_min, y_min), width, height, linewidth=2, edgecolor=color, facecolor='none', alpha=0.7)
+        rect = patches.Rectangle((x_min, y_min), width, height, linewidth=4, edgecolor=color, facecolor='none', alpha=0.7)
         
         # Add the patch to the Axes
         ax.add_patch(rect)

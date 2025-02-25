@@ -1,10 +1,26 @@
 from pathlib import Path
+import cv2
 import numpy as np
 import torch
 from torch import nn
 import pytorch_lightning as pl
+import matplotlib.pyplot as plt
 
 from torchmetrics.detection import GeneralizedIntersectionOverUnion, MeanAveragePrecision
+import wandb
+
+from util.box_ops_numpy import plot_boxes
+
+
+# def show_box(box, ax, color='red'):
+#     y_min, x_min, y_max, x_max = box
+    
+#     # Calculate width and height of the box
+#     width = x_max - x_min
+#     height = y_max - y_min
+
+#     ax.add_patch(plt.Rectangle((x_min, y_min), width, height, edgecolor=color, facecolor=(0,0,0,0), lw=2))
+
 
 
 class TrainingModule(pl.LightningModule):
@@ -79,6 +95,40 @@ class TrainingModule(pl.LightningModule):
         self.training_step_outputs.clear()
         torch.cuda.empty_cache()
 
+    def visualize_prediction(self, image_path: Path, pred, gt_boxes, name: str):
+        im = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+        im = (im - im.min()) / (im.max() - im.min())
+        H, W = im.shape[:2]
+        im = cv2.resize(im, None, fx=1024/max(H,W), fy=1024/max(H,W), interpolation=cv2.INTER_LINEAR)
+
+        boxes_pred = pred['boxes'].cpu().numpy().copy()
+        scores_pred = pred['scores'].cpu().numpy().copy()
+        gt_boxes = gt_boxes.cpu().numpy().copy()
+        print('scores', scores_pred[:10])
+        print('boxes_pred', boxes_pred[:10])
+        boxes_pred = boxes_pred[scores_pred>0.5]
+        scores_pred = scores_pred[scores_pred>0.5]
+
+        # Only keep top max_detections
+        sorted_indices = np.argsort(scores_pred)[::-1]
+        sorted_indices = sorted_indices[:100]
+
+        boxes_pred = boxes_pred[sorted_indices]
+        scores_pred = scores_pred[sorted_indices]
+        print('scores', scores_pred[:10])
+        print('boxes_pred', boxes_pred[:10])
+        
+        fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=50)
+        plot_boxes(im, gt_boxes, format='xyxy_px', ax=ax, show_image=True, color='blue')
+        plot_boxes(im, boxes_pred, format='xyxy_px', ax=ax, show_image=False, color='red')
+        plt.axis(True)
+
+        # Log with wandb
+        wandb.log({name: wandb.Image(fig)})
+
+        plt.close('all')
+
+
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         self.model.eval()
         
@@ -88,6 +138,12 @@ class TrainingModule(pl.LightningModule):
         pred = self.model.forward(images)  # Assumes output in the format [xyxy] in absolute pixel coordinates of the image coordinate system
         self.val_giou_metrics[dataloader_idx].update(pred, targets)
         self.val_map_metrics[dataloader_idx].update(pred, targets)
+
+        if batch_idx==0:
+            target = targets[0]
+            if 'image_path' in target.keys():
+                self.visualize_prediction(target['image_path'], pred[0], target['boxes'],
+                                          f'example_pred@0.5/{self.val_dirs[dataloader_idx]}')
 
 
         total_loss, loss_dict, metrics_dict = self.model.forward_eval(batch)

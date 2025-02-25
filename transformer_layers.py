@@ -372,9 +372,13 @@ class TransformerDecoder(nn.Module):
         intermediate = []
 
         for self_attn, cross_attn, ffn in zip(self.self_attention_layers, self.cross_attention_layers, self.ffn_layers):
+            # print('mem beginning of layer:', torch.cuda.memory_allocated())
             target = self_attn(target=target, target_pos=query_embedding)
+            # print('mem beginning after self_attn:', torch.cuda.memory_allocated())
             target = cross_attn(target=target, target_pos=query_embedding, source=image_embedding, source_pos=pos_embedding)
+            # print('mem beginning after cross_attn:', torch.cuda.memory_allocated())
             target = ffn(target=target)
+            # print('mem beginning after ffn:', torch.cuda.memory_allocated())
 
             if self.return_intermediate:
                 intermediate.append(self.norm(target))

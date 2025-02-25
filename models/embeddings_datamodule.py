@@ -26,7 +26,7 @@ from util import box_ops_numpy
 path_detr = '/home/icb/lion.gleiter/projects/organoid_sam/detr'
 if path_detr not in sys.path:
     sys.path.append(path_detr)
-from detr.datasets import coco
+# from detr.datasets import coco
 
 
 def compute_weights(metadata: pd.DataFrame, groups, max_oversampling = 10.0, max_ratio_0_objects=0.05, weight_open_images=0.5):
@@ -65,10 +65,13 @@ def compute_weights(metadata: pd.DataFrame, groups, max_oversampling = 10.0, max
         oi_ids = metadata.loc[is_oi, ['idx']].values.tolist()
         other_ids = metadata.loc[is_not_oi, ['idx']].values.tolist()
         w[oi_ids] = weight_open_images / len(oi_ids)
-        w[other_ids] = (1 - weight_open_images) / len(other_ids)
+        w[other_ids] = (1 - weight_open_images) / len(other_ids) if len(other_ids) > 0 else 1
         total_available_weight = 1 - weight_open_images
 
     if groups is None:
+        return w
+    
+    if np.all(metadata[['dataset']] == 'open_images'):
         return w
 
     # Each group outside Open Images gets the same total weight and distributes it equally between its members.
@@ -316,36 +319,36 @@ class EmbeddingDataset(Dataset):
     
         if self.backbone == 'SAM_large':
             embed = torch.load(embed_file_sam1, map_location=torch.device('cpu'))
-            features = embed['features']
             orig_size = embed['original_size']
+            embed = embed['features']
 
         elif self.backbone == 'SAM2_large':
             embed = torch.load(embed_file_sam2, map_location=torch.device('cpu'))
-            features = (
+            orig_size = embed['_orig_hw'][0]
+            embed = (
                 embed['_features']['image_embed'],
                 embed['_features']['high_res_feats'][1],
                 embed['_features']['high_res_feats'][0],
             )
-            orig_size = embed['_orig_hw'][0]
 
         elif self.backbone == 'FM_concat':
             embed1 = torch.load(embed_file_sam1, map_location=torch.device('cpu'))
-            features1 = embed1['features']
             orig_size = embed1['original_size']
+            embed1 = embed1['features']
 
-            embed2 = torch.load(embed_file_sam2, map_location=torch.device('cpu'))
-            features = (
-                torch.cat((features1, embed2['_features']['image_embed']), dim=1),
-                embed2['_features']['high_res_feats'][1],
-                embed2['_features']['high_res_feats'][0],
+            embed = torch.load(embed_file_sam2, map_location=torch.device('cpu'))
+            orig_size2 = embed['_orig_hw'][0]
+            embed = (
+                torch.cat((embed1, embed['_features']['image_embed']), dim=1),
+                embed['_features']['high_res_feats'][1],
+                embed['_features']['high_res_feats'][0],
             )
-            orig_size2 = embed2['_orig_hw'][0]
             assert orig_size[0] == orig_size2[0], (orig_size, orig_size2)
             assert orig_size[1] == orig_size2[1], (orig_size, orig_size2)
         else:
             raise ValueError(self.backbone)
 
-        return features, orig_size
+        return embed, orig_size
 
     def __getitem__(self, idx):
         # Load image
@@ -447,6 +450,7 @@ class EmbeddingDataset(Dataset):
         targets_out = {'boxes': targets, 
                        'labels': labels, 
                        'image_id': image_id, 
+                       'image_path': image_path,
                        'area': area, 
                        'is_crowd': is_crowd, 
                        'orig_size': orig_size, 

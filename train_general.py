@@ -19,6 +19,7 @@ import hydra
 from omegaconf import DictConfig
 from omegaconf import open_dict
 
+import models.detr_own_impl_frcnn_bb_model
 import models.detr_own_impl_model
 import models.embeddings_datamodule
 import models.training_module
@@ -85,20 +86,18 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 def initialize_model_and_dataset(args: dict):
     if args.backbone_name == "DETR":
-        backbone = torch.nn.Identity()
         datamodule = models.image_datamodule.ImageDataModule(**args)
         raise NotImplementedError()
     elif args.backbone_name == "FRCNN":
         datamodule = models.image_datamodule.ImageDataModule(**args)
-        raise NotImplementedError()
+        # raise NotImplementedError()
     elif args.backbone_name == "FRCNNv2":
         datamodule = models.image_datamodule.ImageDataModule(**args)
-        raise NotImplementedError()
+        # raise NotImplementedError()
     elif args.backbone_name == "SSD":
         datamodule = models.image_datamodule.ImageDataModule(**args)
         raise NotImplementedError()
     elif args.backbone_name == "SAM_large":
-        # backbone = torch.nn.Identity()  # Replace with adaptor layers
         datamodule = models.embeddings_datamodule.EmbeddingDataModule(**args)
     elif args.backbone_name == "SAM2_large":
         datamodule = models.embeddings_datamodule.EmbeddingDataModule(**args)
@@ -120,6 +119,8 @@ def initialize_model_and_dataset(args: dict):
 
     if args.decoder == "DETR_own_implementation":
         decoder = models.detr_own_impl_model.DetectionTransformer(**args)
+    elif args.decoder == "DETR_own_image_based":
+        decoder = models.detr_own_impl_frcnn_bb_model.DetectionTransformer(**args)
     elif args.decoder == "DETR":
         raise NotImplementedError()
     elif args.decoder == "FRCNN":
@@ -233,6 +234,7 @@ def train(args) -> None:
         max_epochs=args.max_epochs,
         gradient_clip_val=args.gradient_clip_val,
         check_val_every_n_epoch=ckpt_frequency,
+        accumulate_grad_batches=args.accumulate_grad_batches,
     )
 
     trainer.fit(model, data_module, ckpt_path=ckpt_file_resume)

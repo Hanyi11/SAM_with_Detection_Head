@@ -11,7 +11,8 @@ backbone_name: "SAM2_large"
 # weight_decay: 1e-4
 # lr_drop: 200
 batches_per_epoch: 400
-batch_size: 4
+batch_size: 16
+accumulate_grad_batches: 2
 
 # Matcher settings
 set_cost_class: 1.0
@@ -25,7 +26,7 @@ eos_coef: 0.1
 aux_loss: true
 
 # Model architecture and transformer settings
-num_queries: 200
+num_queries: 300
 transformer_dim: 256
 dropout: 0.1
 nheads: 8

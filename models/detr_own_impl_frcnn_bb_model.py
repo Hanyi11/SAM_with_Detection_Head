@@ -5,11 +5,34 @@ from transformer_layers import TransformerDecoder, MLP, PositionEmbeddingSine
 from matcher import HungarianMatcher
 from losses import SetCriterion
 
+import torchvision
+
+
+def get_pretrained_FasterRCNN(decoder_name):
+    # load a model pre-trained on COCO
+    if decoder_name == "FRCNN":
+        model = torchvision.models.detection.fasterrcnn_resnet50_fpn(
+            box_detections_per_img=200,
+            # weights=FasterRCNN_ResNet50_FPN_Weights.COCO_V1
+            weights_backbone="ResNet50_Weights.IMAGENET1K_V1"
+            )
+    elif decoder_name == "FRCNNv2":
+        model = torchvision.models.detection.fasterrcnn_resnet50_fpn_v2(
+            box_detections_per_img=200,
+            # weights=FasterRCNN_ResNet50_FPN_V2_Weights.COCO_V1
+            weights_backbone="ResNet50_Weights.IMAGENET1K_V1"
+            )
+    else:
+        raise ValueError(f'decoder {decoder_name}')
+    return model
+        
+frcnn = get_pretrained_FasterRCNN("FRCNNv2")
 
 
 class DetectionTransformer(nn.Module):
     def __init__(self, 
                  backbone_name,
+                 decoder,
                  set_cost_class: float = 1.0,
                  set_cost_bbox: float = 5.0,
                  set_cost_giou: float = 2.0,
@@ -31,12 +54,16 @@ class DetectionTransformer(nn.Module):
                  **kwargs
                 ):
         super().__init__()
+        assert decoder=="DETR_own_image_based", decoder
         self.backbone_name = backbone_name
         self.num_layers_low_res = num_layers_low_res
         self.num_layers_medium_res = num_layers_medium_res
         self.num_layers_high_res = num_layers_high_res
         self.add_query_before_output = add_query_before_output
-        self.backbone = nn.Identity()
+        frcnn = get_pretrained_FasterRCNN(decoder_name=self.backbone_name)
+        self.frcnn_transform = frcnn.transform
+        self.frcnn_transform._skip_resize=True
+        self.backbone = frcnn.backbone
 
         self.activation = nn.ReLU()
 
@@ -86,7 +113,7 @@ class DetectionTransformer(nn.Module):
 
 
         
-        if (self.backbone_name == 'SAM_large') or (
+        if (
             (self.num_layers_medium_res == 0) and 
             (self.num_layers_high_res == 0)
         ):
@@ -95,11 +122,12 @@ class DetectionTransformer(nn.Module):
             self.class_embed = nn.Linear(transformer_dim, 2) # Binary classification: Object or No object
             self.bbox_embed = MLP(transformer_dim, transformer_dim, 4, 3)
 
-        elif self.backbone_name in ['SAM2_large', 'FM_concat']:
+        else:
             self.low2medium_res = nn.Linear(transformer_dim, 64)
 
             if self.num_layers_medium_res > 0:
                 transformer_dim_medium = 64
+                self.conv_medium = nn.Conv2d(256, transformer_dim_medium, kernel_size=1)
                 self.position_embedding_medium = PositionEmbeddingSine(transformer_dim_medium // 2, normalize=True)
                 self.transformer_decoder_medium = TransformerDecoder(
                     transformer_dim=transformer_dim_medium,
@@ -115,6 +143,7 @@ class DetectionTransformer(nn.Module):
 
             if self.num_layers_high_res > 0:
                 transformer_dim_high = 32
+                self.conv_high = nn.Conv2d(256, transformer_dim_high, kernel_size=1)
                 self.position_embedding_high = PositionEmbeddingSine(transformer_dim_high // 2, normalize=True)
                 self.transformer_decoder_high = TransformerDecoder(
                     transformer_dim=transformer_dim_high,
@@ -128,8 +157,6 @@ class DetectionTransformer(nn.Module):
 
             self.class_embed = nn.Linear(32, 2) # Binary classification: Object or No object
             self.bbox_embed = MLP(32, transformer_dim, 4, 3)
-        else:
-            raise ValueError(self.backbone_name)
 
         # self.bn_boxes = nn.BatchNorm1d(num_features=4*self.num_queries, momentum=0.01)
         
@@ -143,7 +170,7 @@ class DetectionTransformer(nn.Module):
         return [{'pred_logits': a, 'pred_boxes': b} for a, b in zip(outputs_class[:-1], outputs_coord[:-1])]
 
 
-    def forward(self, image_embeddings):
+    def forward(self, images):
         """Predicts boxes and scores for a batch of image embeddings
 
         Args:
@@ -152,7 +179,11 @@ class DetectionTransformer(nn.Module):
                 For SAM2_large: a tuple of 3 torch.Tensors of shape [B, 256, 64, 64], [B, 64, 128, 128], [B, 32, 256, 256].
                 For FM_concat: a tuple of 3 torch.Tensors of shape [B, 512, 64, 64], [B, 64, 128, 128], [B, 32, 256, 256].
         """
-        output = self.forward_images(image_embeddings)
+        images, targets = self.frcnn_transform(images)
+        # print('images', images)
+        # print('targets', targets)
+        assert targets is None, targets
+        output = self.forward_images(images)
 
         boxes = output['pred_boxes']
         scores = output['pred_logits'].softmax(dim=-1)
@@ -175,26 +206,17 @@ class DetectionTransformer(nn.Module):
 
         return predictions
 
-    def forward_images(self, image_embeddings: torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]):
+    def forward_images(self, images):
         # print('mem 1:', torch.cuda.memory_allocated())
 
-        if self.backbone_name=='SAM_large':
-            low_res_feats = image_embeddings
-        elif self.backbone_name=='SAM2_large':
-            assert isinstance(image_embeddings, list), type(image_embeddings)
-            low_res_feats = image_embeddings[0]
-            medium_res_feats = image_embeddings[1]
-            high_res_feats = image_embeddings[2]
-        elif self.backbone_name=='FM_concat':
-            assert isinstance(image_embeddings, list), type(image_embeddings)
-            low_res_feats = self.activation(self.low_res_feature_adaptor(image_embeddings[0]))
-            medium_res_feats = image_embeddings[1]
-            high_res_feats = image_embeddings[2]
-        else:
-            raise ValueError(self.backbone_name)
+        features = self.backbone(images.tensors)
+
+        low_res_feats = features['2']
+        medium_res_feats = features['2']
+        high_res_feats = features['0']
         
         # print('mem 2:', torch.cuda.memory_allocated())
-        del image_embeddings
+        del features
         # print('mem 3:', torch.cuda.memory_allocated())
 
         device = low_res_feats.device
@@ -223,18 +245,18 @@ class DetectionTransformer(nn.Module):
             target = target[-1:]
         target = target.squeeze(0)
 
-        if (self.backbone_name == 'SAM_large') or ((self.num_layers_medium_res == 0) and 
-                                                   (self.num_layers_high_res == 0)):
+        if ((self.num_layers_medium_res == 0) and (self.num_layers_high_res == 0)):
             # print('\n\n target', target[0, 0, :5, :3].detach().cpu().numpy())
             # print('\n\n query_embedding', query_embedding[0, :5, :3].detach().cpu().numpy())
             pass
-        elif self.backbone_name in ['SAM2_large', 'FM_concat']:
+        else:
             # Proceed decoding with medium and high res features
             target = self.activation(self.low2medium_res(target))
             query_embedding = self.activation(self.low2medium_res(query_embedding))
             if self.aux_loss:
                 target_aux = self.activation(self.low2medium_res(target_aux))
             if self.num_layers_medium_res > 0:
+                medium_res_feats = self.conv_medium(medium_res_feats)
                 pos_embedding = self.position_embedding_medium(medium_res_feats) # bs x 256 x 64 x 64
                 pos_embedding = pos_embedding.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
                 medium_res_feats = medium_res_feats.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
@@ -250,6 +272,7 @@ class DetectionTransformer(nn.Module):
             if self.aux_loss:
                 target_aux = self.activation(self.medium2high_res(target_aux))
             if self.num_layers_high_res > 0:
+                high_res_feats = self.conv_high(high_res_feats)
                 pos_embedding = self.position_embedding_high(high_res_feats) # bs x 256 x 64 x 64
                 pos_embedding = pos_embedding.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
                 high_res_feats = high_res_feats.flatten(2).permute(0, 2, 1) # bs x (64x64) x 256
@@ -266,8 +289,6 @@ class DetectionTransformer(nn.Module):
                     target = target[-1:]
                 target = target.squeeze(0)
                 
-        else:
-            raise ValueError(self.backbone_name)
         
         target = target.unsqueeze(0)
 
@@ -320,10 +341,13 @@ class DetectionTransformer(nn.Module):
         return out
 
     def forward_batch(self, batch):
-        image_embedding, targets = batch[0], batch[1]
+        images, targets = batch[0], batch[1]
 
         # Forward
-        outputs = self.forward_images(image_embedding)
+        images, targets = self.frcnn_transform(images, targets)
+        # print('images', images)
+        # print('targets', targets)
+        outputs = self.forward_images(images)
         
         # Process targets: filter out all-zero entries and create dictionary
         # targets are bounding boxes of shape [bs x num_queries x 4]

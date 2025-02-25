@@ -154,6 +154,10 @@ class PredictionSAM():
 
         # xyxy to yxyx and coordinates of the full image
         boxes_patch = boxes.copy()
+
+
+
+
         boxes_full_image = np.stack([boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]], axis=1)
         boxes_full_image += np.array([[off_y, off_x, off_y, off_x]])
         return contours, boxes_full_image, scores, boxes_patch
@@ -224,6 +228,7 @@ class PredictionSAM():
                 assert np.all(masks.shape[-2:] == np.array([H, W], dtype=int)), f'{masks.shape}, {H}, {W}'
                 assert masks.shape[0] == 1, masks.shape
                 mask = masks[0]
+                
                 transform = rasterio.Affine(1, 0, off_x, 0, 1, off_y)
                 outlines = []
                 for p, v in rio_shapes(mask,

@@ -727,6 +727,9 @@ def compute_metrics_detection_all(iou_matrix, iou_thres, scores, thresholds):
         # Removes predictions with confidence below thres.
         cost_matrix = -iou_matrix.copy()
         cost_matrix = cost_matrix[conf_scores >= thres]
+        
+        num_preds = cost_matrix.shape[0]
+        assert num_gts == cost_matrix.shape[1], (cost_matrix.shape, num_gts)
 
         # Greedy matching for optimal assignment given a certain threshold
         row_ind, col_ind = linear_sum_assignment(cost_matrix)

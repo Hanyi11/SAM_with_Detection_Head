@@ -216,17 +216,21 @@ class GroundTruthSAM():
             patch_size = (patch_size, )
         
         # Predict patches
-        i = 0
-        for psize in patch_size:
-            for im_crop, offset_x, offset_y, size in dl.patch_image(image, size=psize, overlap = 1/2):
-                self.forward_one_patch(patch=im_crop,
-                                       offset_x=offset_x,
-                                       offset_y=offset_y)
+        if predict_masks:
+            i = 0
+            for psize in patch_size:
+                for im_crop, offset_x, offset_y, size in dl.patch_image(image, size=psize, overlap = 1/2):
+                    self.forward_one_patch(patch=im_crop,
+                                        offset_x=offset_x,
+                                        offset_y=offset_y)
                 
 
         self.pred_scores, self.pred_boxes = self.predict_boxes(gt_boxes, H=H, W=W)
         for box in self.pred_boxes:
-            self.pred_contours.append(self.predict_mask(box))
+            if predict_masks:
+                self.pred_contours.append(self.predict_mask(box))
+            else:
+                self.pred_contours.append(None)
 
         # Postprocessing (not necessary if GT boxes are provided)
         # self.filter_diameter(min_diameter, predict_masks=predict_masks)

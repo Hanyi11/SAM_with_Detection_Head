@@ -124,17 +124,17 @@ if __name__=='__main__':
     mAP_metric.warn_on_many_detections = False
 
     for model_name, sam_version, logging_name in [
-        # ('SSD_objects_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2024'),
-        # ('SSD_objects_2025', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2025'),
+        ('SSD_objects_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2024'),
+        ('SSD_objects_2025', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2025'),
         ('SSD_objects_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2026'),
         
         ('SSD_objects_dataset_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_True_8_200_2024'),
         ('SSD_objects_dataset_2025', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_True_8_200_2025'),
-        # ('SSD_objects_dataset_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_True_8_200_2026'),
+        ('SSD_objects_dataset_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_True_8_200_2026'),
         
         ('SSD_objects_dataset_patchsize_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2024'),
         ('SSD_objects_dataset_patchsize_2025', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2025'),
-        # ('SSD_objects_dataset_patchsize_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2026'),
+        ('SSD_objects_dataset_patchsize_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2026'),
         
         ('FRCNNv2_bs5_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_5_batches_per_epoch_True_8_5_2024'),
         ('FRCNNv2_bs5_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_5_batches_per_epoch_True_8_5_2025'),
@@ -149,9 +149,18 @@ if __name__=='__main__':
         ('FRCNNv2_bs20_objects_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_20_batches_per_epoch_True_8_20_2026'),
 
         ('FRCNNv2_bs50_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_50_batches_per_epoch_True_8_50_2024'),
-        ('FRCNNv2_bs100_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_100_batches_per_epoch_True_8_100_2024'),
+        ('FRCNNv2_bs50_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_50_batches_per_epoch_True_8_50_2025'),
+        ('FRCNNv2_bs50_objects_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_50_batches_per_epoch_True_8_50_2026'),
+
         ('FRCNNv2_bs50_objects_dataset_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_50_batches_per_epoch_True_8_50_2024'),
+        ('FRCNNv2_bs50_objects_dataset_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_50_batches_per_epoch_True_8_50_2025'),
+        ('FRCNNv2_bs50_objects_dataset_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_50_batches_per_epoch_True_8_50_2026'),
+
         ('FRCNNv2_bs50_objects_dataset_patchsize_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_patch_size_50_batches_per_epoch_True_8_50_2024'),
+        ('FRCNNv2_bs50_objects_dataset_patchsize_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_patch_size_50_batches_per_epoch_True_8_50_2025'),
+        ('FRCNNv2_bs50_objects_dataset_patchsize_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_patch_size_50_batches_per_epoch_True_8_50_2026'),
+
+        ('FRCNNv2_bs100_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_100_batches_per_epoch_True_8_100_2024'),
         
         ('pretrained_sam1_small_stage1', 'sam1', 'DETR_own_implementation_SAM_large_open_images_v4_5_original_data_NeurIPSCellSeg_train_DETR_own_SAM1_small_head_pretraining_True_4_400_2024'),
     ]:
@@ -171,9 +180,9 @@ if __name__=='__main__':
             dl.MultiOrg(split='test_macros'),
             dl.MultiOrg(split='test_normal'),
         ]):
-            
-            if (results_dir / f'{model_name}' / f'mean_segmentation_metrics_{str(ds)}_{ds.split}.csv').exists():
-                continue
+            print(f'\n\n\n reached dataset {str(ds)} {ds.split} ====== \n\n\n')
+            # if (results_dir / f'{model_name}' / f'mean_segmentation_metrics_{str(ds)}_{ds.split}.csv').exists():
+            #     continue
 
 
             detection_mAP = []
@@ -186,6 +195,7 @@ if __name__=='__main__':
             for idx in tqdm(range(len(ds))):
                 im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
                 # im, flatfield = dl.normalize(im)
+                print('gt_boxes.shape', gt_boxes.shape)
 
                 if fixed_patch_size is None:
                     H, W = im.shape[:2]
@@ -205,11 +215,14 @@ if __name__=='__main__':
                                                                 predict_masks=evaluate_segmentation or evaluate_with_stitching)
 
                 # Detection
+                # print('gt_boxes.shape directly before', gt_boxes.shape)
+                # print('boxes.shape directly before', boxes.shape)
                 mAP_metric.update(preds=[{'boxes': torch.from_numpy(boxes), 
                                         'scores': torch.from_numpy(scores), 
                                         'labels': torch.zeros(scores.shape, dtype=torch.int)}], 
                                 target=[{'boxes': torch.from_numpy(gt_boxes), 
                                         'labels': torch.zeros((gt_boxes.shape[0],), dtype=torch.int)}])
+                # print('mAP_metric.compute()', mAP_metric.compute())
                 iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
                 mAP_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_detection_all(
                     iou_matrix, iou_thres, scores, thresholds

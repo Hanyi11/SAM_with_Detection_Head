@@ -6,8 +6,8 @@
 
 ### ---------- GPU ----------
 # #SBATCH --exclude=supergpu17
-#SBATCH --qos gpu_normal 
-# #SBATCH --qos gpu_preemptible 
+# #SBATCH --qos gpu_normal 
+#SBATCH --qos gpu_preemptible 
 #SBATCH --partition gpu_p
 
 #SBATCH --gres=gpu:1
@@ -31,6 +31,6 @@ conda deactivate
 source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
 # FRCNN
-python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects" sampling_groups=["n_objects"] seed=2024
-python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects" sampling_groups=["n_objects"] seed=2025
-python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects" sampling_groups=["n_objects"] seed=2026
+python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects_dataset" batches_per_epoch=50 sampling_groups=["n_objects","dataset"] seed=2024
+python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects_dataset" batches_per_epoch=50 sampling_groups=["n_objects","dataset"] seed=2025
+python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects_dataset" batches_per_epoch=50 sampling_groups=["n_objects","dataset"] seed=2026

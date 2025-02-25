@@ -121,7 +121,7 @@ if __name__=='__main__':
     # use_fixed_patch_for_organoID = False  # If true, uses 4 patches per image and adjusts their size correspondingly.
     fixed_patch_size = (512, 2048)  # If None, uses 4 patches per image and adjusts their size correspondingly.
     evaluate_with_stitching = False  # should be False with the new training
-    evaluate_segmentation = True  # can be False with the new training, might speed up evaluation?
+    evaluate_segmentation = False  # True  # can be False with the new training, might speed up evaluation?
     save_below_AP = 0.8
 
     # Metrics
@@ -129,43 +129,43 @@ if __name__=='__main__':
     mAP_metric.warn_on_many_detections = False
 
     for model_version, model in [
-        # ('gt_sam1', GroundTruthSAM(sam_version='sam1', box_noise_std=0, box_noise_bias=0)),
+        ('gt_sam1', GroundTruthSAM(sam_version='sam1', box_noise_std=0, box_noise_bias=0)),
         ('gt_sam2', GroundTruthSAM(sam_version='sam2', box_noise_std=0, box_noise_bias=0)),
     ]:
         for model_ext, std, bias in [
-            # ('sd_0_bias_0', 0, 0),
+            ('sd_0_bias_0', 0, 0),
             # ('sd_1_bias_0', 1, 0),
             # ('sd_2_bias_0', 2, 0),
             # ('sd_3_bias_0', 3, 0),
             # ('sd_4_bias_0', 4, 0),
             # ('sd_5_bias_0', 5, 0),
             # ('sd_1_bias_1', 1, 1),
-            ('sd_2_bias_2', 2, 2),
-            ('sd_3_bias_3', 3, 3),
-            ('sd_4_bias_4', 4, 4),
-            ('sd_5_bias_5', 5, 5),
+            # ('sd_2_bias_2', 2, 2),
+            # ('sd_3_bias_3', 3, 3),
+            # ('sd_4_bias_4', 4, 4),
+            # ('sd_5_bias_5', 5, 5),
         ]:
             model_name = f'{model_version}_{model_ext}'
             model.box_noise_std = std
             model.box_noise_bias = bias
 
             for ds_idx, ds in enumerate([
-                # dl.MultiOrg(split='test_macros'),
                 dl.OrgaSegment(split='test'),
                 dl.OrganoID(split='test'),
                 dl.OrganoID(split='test_C'),
                 dl.OrganoID(split='test_Lung'),
                 dl.OrganoID(split='test_ACC'),
                 dl.OrganoID(split='test_only_mouse'),
-                # dl.OrgaExtractor(split='all'),
                 dl.NewData(split='all'),
-                # dl.OrgaQuant(split='test'),
-                # dl.Tellu(split='test'),
-                # dl.MultiOrg(split='test_normal'),
+                dl.OrgaExtractor(split='all'),
+                dl.OrgaQuant(split='test'),
+                dl.Tellu(split='test'),
+                dl.MultiOrg(split='test_normal'),
+                dl.MultiOrg(split='test_macros'),
             ]):
             
-                if (results_dir / f'{model_name}' / f'mean_segmentation_metrics_{str(ds)}_{ds.split}.csv').exists():
-                    continue
+                # if (results_dir / f'{model_name}' / f'mean_segmentation_metrics_{str(ds)}_{ds.split}.csv').exists():
+                #     continue
 
 
                 detection_mAP = []
@@ -174,7 +174,9 @@ if __name__=='__main__':
                 segmentation_metrics = []
                 det_data = []
                 seg_data = []
+                # print('mAP_metric before reset()', mAP_metric.compute())
                 mAP_metric.reset()
+                # print('mAP_metric after reset()', mAP_metric.compute())
                 for idx in tqdm(range(len(ds))):
                     im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
                     im, flatfield = dl.normalize(im)
@@ -198,11 +200,17 @@ if __name__=='__main__':
                                                                     predict_masks=evaluate_segmentation or evaluate_with_stitching)
 
                     # Detection
+                    # print('gt_boxes.shape directly before', gt_boxes.shape)
+                    # print('gt_boxes directly before', gt_boxes[:3])
+                    # print('boxes.shape directly before', boxes.shape)
+                    # print('boxes directly before', boxes[:3])
                     mAP_metric.update(preds=[{'boxes': torch.from_numpy(boxes), 
                                             'scores': torch.from_numpy(scores), 
                                             'labels': torch.zeros(scores.shape, dtype=torch.int)}], 
                                     target=[{'boxes': torch.from_numpy(gt_boxes), 
                                             'labels': torch.zeros((gt_boxes.shape[0],), dtype=torch.int)}])
+                    
+                    # print('mAP_metric.compute()', mAP_metric.compute())
                     
                     iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
                     mAP_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_detection_all(
@@ -250,9 +258,9 @@ if __name__=='__main__':
                             'iou_scores_no_thres': iou_scores_no_thres,
                             'dice_scores_no_thres': dice_scores_no_thres,
                         }))
-                        print("\n\n hausdorff_scores", hausdorff_scores, '\n\n', flush=True)
-                        print("\n\n masd_scores", masd_scores, '\n\n', flush=True)
-                        print("\n\n assd_scores", assd_scores, '\n\n', flush=True)
+                        # print("\n\n hausdorff_scores", hausdorff_scores, '\n\n', flush=True)
+                        # print("\n\n masd_scores", masd_scores, '\n\n', flush=True)
+                        # print("\n\n assd_scores", assd_scores, '\n\n', flush=True)
                         # print("\n\n segmentation_mAP", segmentation_mAP[-1], '\n\n', flush=True)
                         segmentation_metrics.append(pd.DataFrame({
                             'thres': map(lambda x: f'{x:.3f}', thresholds), 
@@ -329,7 +337,10 @@ if __name__=='__main__':
                 mean_metrics.to_csv(results_dir / f'{model_name}' / f'mean_detection_metrics_{str(ds)}_{ds.split}.csv', index=False)
 
                 res = mAP_metric.compute()
+                
+                # print('res mAP_metric.compute()', res)
                 mAP_metric.reset()
+                # print('mAP_metric after reset() end', mAP_metric.compute())
                 with open(results_dir / f'{model_name}' / f'mean_detection_torch_mAP_{str(ds)}_{ds.split}.csv', 'w') as f:
                     json.dump({k: v.item() for k, v in res.items()}, f)
 

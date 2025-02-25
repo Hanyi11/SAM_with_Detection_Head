@@ -3,16 +3,16 @@ defaults:
   - _self_
 
 # Model configuration
-decoder: "DETR_own_implementation"
-backbone_name: "SAM_large"
+decoder: "DETR_own_image_based"
+backbone_name: "FRCNN"
 
 # # Learning rate and optimizer parameters
 # learning_rate: 1e-4
 # weight_decay: 1e-4
 # lr_drop: 200
-batches_per_epoch: 400
-batch_size: 16
-accumulate_grad_batches: 2
+batches_per_epoch: 800
+batch_size: 8
+accumulate_grad_batches: 4
 
 # Matcher settings
 set_cost_class: 1.0
@@ -39,5 +39,5 @@ gradient_clip_val: 0.1
 
 # Logging and checkpointing
 project_name: "OrganoidDetection"
-sub_name: "baseline_detr_own"
+sub_name: "baseline_detr_own_frcnn_small"
 log_dir: "logs/"

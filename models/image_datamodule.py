@@ -4,6 +4,7 @@ import PIL
 import PIL.Image
 import cv2
 import numpy as np
+import torchvision
 from tqdm import tqdm
 from typing import Literal, List
 from copy import deepcopy
@@ -123,10 +124,13 @@ def compute_weights(metadata: pd.DataFrame, groups, max_oversampling = 10.0, max
         oi_ids = metadata.loc[is_oi, ['idx']].values.tolist()
         other_ids = metadata.loc[is_not_oi, ['idx']].values.tolist()
         w[oi_ids] = weight_open_images / len(oi_ids)
-        w[other_ids] = (1 - weight_open_images) / len(other_ids)
+        w[other_ids] = (1 - weight_open_images) / len(other_ids) if len(other_ids) > 0 else 1 
         total_available_weight = 1 - weight_open_images
 
     if groups is None:
+        return w
+    
+    if np.all(metadata[['dataset']] == 'open_images'):
         return w
 
     # Each group outside Open Images gets the same total weight and distributes it equally between its members.
@@ -346,6 +350,7 @@ class ImageDataset(Dataset):
                  data_split: Literal["train", "test", "val"], 
                  data_split_dirs: List[str],
                  backbone_name: Literal["FRCNN", "FRCNNv2", "SSD", "DETR", "DETR_own_implementation"], 
+                 decoder = None,
                  base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale_miccai",
                  augmentation: bool = True,
                  min_overlap: float = 0.99, # 0.9,
@@ -362,6 +367,7 @@ class ImageDataset(Dataset):
         
         # Pretrained transformer model parameters
         self.backbone = backbone_name
+        self.decoder = decoder
         
         # Set parameters for filtering out objects that are too small or that do not have enough overlap with the image.
         self.min_overlap = min_overlap
@@ -569,6 +575,16 @@ class ImageDataset(Dataset):
         if self.augmentation is not None:
             image, targets = self.augmentation(image, targets)
 
+
+        # Pad with zeros to 1024, 1024 for DETR own impl
+        if self.decoder == "DETR_own_image_based":
+            image = torchvision.transforms.functional.pad(
+                image, padding=(0, 0, 1024 - image.shape[-1], 1024 - image.shape[-2]),
+                fill=0, padding_mode='constant'
+            )
+            assert image.shape[-1]==1024, image.shape
+            assert image.shape[-2]==1024, image.shape
+
         targets = torch.tensor(targets, dtype=torch.float32)
         labels = torch.ones((targets.shape[0],), dtype=torch.int64)
         image_id = torch.tensor([idx])
@@ -580,6 +596,7 @@ class ImageDataset(Dataset):
         targets_out = {'boxes': targets, 
                        'labels': labels, 
                        'image_id': image_id, 
+                       'image_path': image_path,
                        'area': area, 
                        'is_crowd': is_crowd, 
                        'orig_size': orig_size, 

@@ -4,15 +4,16 @@ defaults:
 
 # Model configuration
 decoder: "DETR_own_implementation"
-backbone_name: "SAM_large"
+backbone_name: "SAM2_large"
+add_query_before_output: true
 
 # # Learning rate and optimizer parameters
 # learning_rate: 1e-4
 # weight_decay: 1e-4
 # lr_drop: 200
-batches_per_epoch: 400
-batch_size: 16
-accumulate_grad_batches: 2
+batches_per_epoch: 800
+batch_size: 8
+accumulate_grad_batches: 4
 
 # Matcher settings
 set_cost_class: 1.0
@@ -31,9 +32,9 @@ transformer_dim: 256
 dropout: 0.1
 nheads: 8
 dim_feedforward: 512
-num_layers_low_res: 6
-num_layers_medium_res: 0
-num_layers_high_res: 0
+num_layers_low_res: 11
+num_layers_medium_res: 6
+num_layers_high_res: 4
 pre_norm: true
 gradient_clip_val: 0.1
 
