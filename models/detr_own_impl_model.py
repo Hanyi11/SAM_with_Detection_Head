@@ -314,7 +314,7 @@ class DetectionTransformer(nn.Module):
         # print('outputs_class', outputs_class)
         # print('bbox_logits', bbox_logits)
         if self.scale_bb_before_sigmoid:
-            outputs_coord = (bbox_logits * 10).sigmoid()  # [cy cx h w] in [0, 1] range
+            outputs_coord = (bbox_logits * 20).sigmoid()  # [cy cx h w] in [0, 1] range
         else:
             outputs_coord = bbox_logits.sigmoid()  # [cy cx h w] in [0, 1] range
 

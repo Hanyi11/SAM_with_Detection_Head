@@ -34,7 +34,7 @@ from util import postprocessing as pp
 # from util.ssd import SSDPredictor
 # from util.FasterRCNN import FasterRCNNPredictor
 # from util.cellpose import Cellpose
-from util.orgasegment import PredictorFromMasks
+from util.umamba import Umamba
 
 base_datadir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/original_data/')
 results_dir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/results')
@@ -152,17 +152,8 @@ if __name__=='__main__':
     mAP_metric.warn_on_many_detections = False
 
     for model_name, model in [
-        # ('cellpose_diam_[30]', Cellpose(diameter=[30])),
-        # ('cellpose_diam_[100]', Cellpose(diameter=[100])),
-        # ('cellpose_diam_[300]', Cellpose(diameter=[300])),
-        # ('cellpose_diam_[100,300]', Cellpose(diameter=[100,300])),
-        # ('cellpose_diam_[None]', Cellpose(diameter=[None])),
-        ('OrgaSegment', PredictorFromMasks('OrgaSegment')),
-        ('OrganoID', PredictorFromMasks('OrganoID')),
-        ('AnyStar_20', PredictorFromMasks('AnyStar', scales=(20,))),
-        ('AnyStar_10', PredictorFromMasks('AnyStar', scales=(10,))),
-        ('AnyStar_5', PredictorFromMasks('AnyStar', scales=(5,))),
-        ('AnyStar_all', PredictorFromMasks('AnyStar', scales=(20,10,5))),
+        ('umamba_enc', Umamba('enc')),
+        ('umamba_bot', Umamba('bot')),
     ]:
         for ds_idx, ds in enumerate([
             dl.OrganoID(split='test'),
@@ -200,7 +191,7 @@ if __name__=='__main__':
                     patch_size = fixed_patch_size
 
                 # Prediction with optimal threshold
-                contours, boxes, scores = model.forward(f'{str(ds)}_{ds.split}', im_ID,
+                contours, boxes, scores = model.forward(ds, idx,
                                                         patch_size=patch_size, 
                                                         predict_masks=evaluate_segmentation or evaluate_with_stitching,
                                                         min_diameter=30/1.29 if str(ds).startswith('MultiOrg') else 10)

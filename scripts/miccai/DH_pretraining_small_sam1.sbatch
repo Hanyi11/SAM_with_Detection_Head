@@ -11,9 +11,9 @@
 #SBATCH --partition gpu_p
 
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=28
+#SBATCH --cpus-per-task=15
 #SBATCH --mem=100G
-#SBATCH --constraint="a100_40gb|a100_80gb|a100_20gb"
+# #SBATCH --constraint="a100_40gb|a100_80gb|a100_20gb"
 
 #SBATCH --time=01-00:00:00 # Job runtime 02-00:00:00
 #SBATCH --nice=0  # Manual priority. Do not change this.

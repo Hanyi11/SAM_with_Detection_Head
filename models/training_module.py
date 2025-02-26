@@ -106,8 +106,8 @@ class TrainingModule(pl.LightningModule):
         gt_boxes = gt_boxes.cpu().numpy().copy()
         print('scores', scores_pred[:10])
         print('boxes_pred', boxes_pred[:10])
-        boxes_pred = boxes_pred[scores_pred>0.5]
-        scores_pred = scores_pred[scores_pred>0.5]
+        boxes_pred = boxes_pred[scores_pred>0.3]
+        scores_pred = scores_pred[scores_pred>0.3]
 
         # Only keep top max_detections
         sorted_indices = np.argsort(scores_pred)[::-1]

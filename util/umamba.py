@@ -136,7 +136,7 @@ class Umamba():
         masks, boxes, scores = self.set_threshold(self.default_thres)
         return masks, boxes, scores
     
-    def set_threshold(self, conf_thres):
+    def set_threshold(self, conf_thres, predict_masks=True):
         keep_indices = self.pred_scores >= conf_thres
         pred_boxes = self.pred_boxes[keep_indices]
         pred_scores = self.pred_scores[keep_indices]
