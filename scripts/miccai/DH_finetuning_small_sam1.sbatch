@@ -6,13 +6,14 @@
 
 ### ---------- GPU ----------
 # #SBATCH --exclude=supergpu17
-# #SBATCH --qos gpu_normal 
-#SBATCH --qos gpu_preemptible 
+#SBATCH --qos gpu_normal 
+# #SBATCH --qos gpu_preemptible 
 #SBATCH --partition gpu_p
 
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=15
-#SBATCH --mem=100G
+#SBATCH --cpus-per-task=20
+#SBATCH --mem=50G
+#SBATCH --reservation=res_mojtaba.bahrami
 # #SBATCH --constraint="a100_40gb|a100_80gb|h100_80gb"
 
 #SBATCH --time=01-00:00:00 # Job runtime 02-00:00:00
@@ -32,4 +33,6 @@ source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
 # python train_general.py +baseline_models=detr_own_sam1_small_head sub_name="DETR_own_SAM1_small_head_pretraining" sampling_groups=["n_objects"] batch_size=8 batches_per_epoch=50 seed=2024
 
-python train_general.py +baseline_models=detr_own_sam1_small_head sub_name='"${hydra:runtime.choices.baseline_models}_finetuning_with_query"' sampling_groups=["n_objects","dataset"] lr_drop=300 max_epochs=500 +add_query_before_output=true seed=2024
+# python train_general.py +baseline_models=detr_own_sam1_small_head sub_name='"${hydra:runtime.choices.baseline_models}_finetuning_with_query"' sampling_groups=["n_objects","dataset"] lr_drop=300 max_epochs=500 +add_query_before_output=true seed=2024
+# python train_general.py +baseline_models=detr_own_sam1_small_head sub_name='"${hydra:runtime.choices.baseline_models}_finetuning_with_query"' sampling_groups=["n_objects","dataset"] lr_drop=300 max_epochs=500 +add_query_before_output=true seed=2025
+python train_general.py +baseline_models=detr_own_sam1_small_head sub_name='"${hydra:runtime.choices.baseline_models}_finetuning_with_query"' sampling_groups=["n_objects","dataset"] lr_drop=300 max_epochs=500 +add_query_before_output=true seed=2026

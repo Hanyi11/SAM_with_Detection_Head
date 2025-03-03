@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import time
 from typing import Literal
 import cv2
 import numpy as np
@@ -8,6 +9,8 @@ import rasterio
 from rasterio.features import shapes as rio_shapes
 import shapely
 import json
+
+from tqdm import tqdm
 # from cellpose import models as cp_models
 # from . import dataloading as dl
 from . import postprocessing as pp
@@ -34,7 +37,7 @@ from sam2.sam2_image_predictor import SAM2ImagePredictor
 class PredictionSAM():
     def __init__(self, logging_name,
                  sam_version: Literal['sam1', 'sam2'] = 'sam1',
-                 max_detections = 1000):
+                 max_detections = 400):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.logging_name = logging_name
         self.sam_version = sam_version
@@ -263,7 +266,7 @@ class PredictionSAM():
 
         all_boxes_patch = []
         patched_image_ids = []
-        for i, patched_image in enumerate(patched_images):
+        for i, patched_image in tqdm(enumerate(patched_images)):
             patch_num = int(patched_image.stem.replace('patch_', ''))
             offset = offsets[patch_num]
             contours, boxes, scores, boxes_patch = self.load_boxes_one_patch(patched_image=patched_image, 
@@ -281,13 +284,31 @@ class PredictionSAM():
         all_boxes_patch = np.concatenate(all_boxes_patch, axis=0)
         patched_image_ids = np.concatenate(patched_image_ids, axis=0)
 
+        print('before filter_diameter', time.time())
         # Postprocessing
         self.pred_boxes, self.pred_scores, self.pred_contours, all_boxes_patch, patched_image_ids = \
             self.filter_diameter(self.pred_boxes, self.pred_scores, self.pred_contours, all_boxes_patch, patched_image_ids, min_diameter)
 
+
+
+        # Only keep top max_detections
+        print('len(self.pred_scores)', self.pred_scores.shape[0])
+        sorted_indices = np.argsort(self.pred_scores)[::-1]
+        sorted_indices = sorted_indices[:5000]
+
+        self.pred_boxes = self.pred_boxes[sorted_indices]
+        self.pred_scores = self.pred_scores[sorted_indices]
+        all_boxes_patch = all_boxes_patch[sorted_indices]
+        patched_image_ids = patched_image_ids[sorted_indices]
+        self.pred_contours = [self.pred_contours[i] for i in sorted_indices]
+
+
+
+        print('after filter_diameter', time.time())
         self.pred_boxes, self.pred_scores, self.pred_contours, all_boxes_patch, patched_image_ids = \
             self.nms(self.pred_boxes, self.pred_scores, self.pred_contours, all_boxes_patch, patched_image_ids)
         
+        print('after nms', time.time())
         
         if self.pred_boxes.shape[0] == 0:
             return [], self.pred_boxes, self.pred_scores
@@ -331,8 +352,12 @@ class PredictionSAM():
         
         assert len(self.pred_contours)==self.pred_boxes.shape[0], (len(self.pred_contours), self.pred_boxes.shape[0])
 
+        print('after predict masks', time.time())
         # Threshold boxes
         contours, boxes, scores = self.set_threshold(self.default_thres)
+
+        print('after set_threshold', time.time())
+
         return contours, boxes, scores
 
     def set_threshold(self, conf_thres, predict_masks=True):

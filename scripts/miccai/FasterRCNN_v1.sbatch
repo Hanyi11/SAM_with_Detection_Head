@@ -11,8 +11,8 @@
 #SBATCH --partition gpu_p
 
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=28
-#SBATCH --mem=100G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=20G
 # #SBATCH --constraint="a100_40gb|a100_80gb|h100_80gb"
 
 #SBATCH --time=01-00:00:00 # Job runtime 02-00:00:00
@@ -31,6 +31,6 @@ conda deactivate
 source /lustre/groups/peng/datasets/lion/data/venvs/sam_dh/bin/activate
 
 # FRCNN
-python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects_dataset" batches_per_epoch=50 sampling_groups=["n_objects","dataset"] seed=2024
-python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects_dataset" batches_per_epoch=50 sampling_groups=["n_objects","dataset"] seed=2025
+# python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects_dataset" batches_per_epoch=50 sampling_groups=["n_objects","dataset"] seed=2024
+# python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects_dataset" batches_per_epoch=50 sampling_groups=["n_objects","dataset"] seed=2025
 python train_general.py +baseline_models=frcnn sub_name="20022025_baseline_frcnn_sampling_n_objects_dataset" batches_per_epoch=50 sampling_groups=["n_objects","dataset"] seed=2026

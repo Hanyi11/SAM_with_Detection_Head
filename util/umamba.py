@@ -86,8 +86,8 @@ class Umamba():
     def nms(self, boxes, scores, contours):
         kept_indices = pp.non_max_suppression(boxes, scores, threshold=self.nms_thres)
         if len(kept_indices) == 0:
-            return np.array([], dtype=float).reshape((0, 4)), np.array([], dtype=float).reshape((0,)), [], np.array([], dtype=float).reshape((0,2)), np.array([], dtype=float).reshape((0,))
-
+            return np.array([], dtype=float).reshape((0, 4)), np.array([], dtype=float).reshape((0,)), []
+        
         boxes = boxes[kept_indices]
         contours = [contours[ii] for ii in kept_indices]
         scores = scores[kept_indices]

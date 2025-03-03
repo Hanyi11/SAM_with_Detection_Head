@@ -139,7 +139,7 @@ if __name__=='__main__':
 
     # Parameters
     thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.975]
-    iou_thres = [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+    iou_thres = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 
     # use_fixed_patch_for_organoID = False  # If true, uses 4 patches per image and adjusts their size correspondingly.
     fixed_patch_size = (1024, 2048)  # If None, uses 4 patches per image and adjusts their size correspondingly.
@@ -157,24 +157,24 @@ if __name__=='__main__':
         # ('cellpose_diam_[300]', Cellpose(diameter=[300])),
         # ('cellpose_diam_[100,300]', Cellpose(diameter=[100,300])),
         # ('cellpose_diam_[None]', Cellpose(diameter=[None])),
-        ('OrgaSegment', PredictorFromMasks('OrgaSegment')),
-        ('OrganoID', PredictorFromMasks('OrganoID')),
-        ('AnyStar_20', PredictorFromMasks('AnyStar', scales=(20,))),
+        # ('OrgaSegment', PredictorFromMasks('OrgaSegment')),
+        # ('OrganoID', PredictorFromMasks('OrganoID')),
+        # ('AnyStar_20', PredictorFromMasks('AnyStar', scales=(20,))),
         ('AnyStar_10', PredictorFromMasks('AnyStar', scales=(10,))),
-        ('AnyStar_5', PredictorFromMasks('AnyStar', scales=(5,))),
+        # ('AnyStar_5', PredictorFromMasks('AnyStar', scales=(5,))),
         ('AnyStar_all', PredictorFromMasks('AnyStar', scales=(20,10,5))),
     ]:
         for ds_idx, ds in enumerate([
-            dl.OrganoID(split='test'),
-            dl.OrganoID(split='test_C'),
-            dl.OrganoID(split='test_Lung'),
-            dl.OrganoID(split='test_ACC'),
-            dl.OrganoID(split='test_only_mouse'),
-            dl.OrgaExtractor(split='all'),
-            dl.NewData(split='all'),
-            dl.OrgaSegment(split='test'),
-            dl.OrgaQuant(split='test'),
-            dl.Tellu(split='test'),
+            # dl.OrganoID(split='test'),
+            # dl.OrganoID(split='test_C'),
+            # dl.OrganoID(split='test_Lung'),
+            # dl.OrganoID(split='test_ACC'),
+            # dl.OrganoID(split='test_only_mouse'),
+            # dl.OrgaExtractor(split='all'),
+            # dl.NewData(split='all'),
+            # dl.OrgaSegment(split='test'),
+            # dl.OrgaQuant(split='test'),
+            # dl.Tellu(split='test'),
             dl.MultiOrg(split='test_macros'),
             dl.MultiOrg(split='test_normal'),
         ]):
@@ -190,7 +190,7 @@ if __name__=='__main__':
             mAP_metric.reset()
             for idx in tqdm(range(len(ds))):
                 im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
-                im, flatfield = dl.normalize(im)
+                # im, flatfield = dl.normalize(im)
 
                 if fixed_patch_size is None:
                     H, W = im.shape[:2]
@@ -231,17 +231,17 @@ if __name__=='__main__':
                     'recall': recall_scores, 
                 }))
                 
-                # Visualize with threshold 0.5
-                if mAP_scores[0] < save_below_AP:
-                    fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
-                    plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
-                    plot_boxes(im, boxes[scores>0.5], format='yxyx_px', ax=ax, show_image=False, color='red')
-                    plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}_{iou_thres[0]}'
-                    results_dir.mkdir(exist_ok=True)
-                    (results_dir / 'plots').mkdir(exist_ok=True)
-                    plot_dir.mkdir(exist_ok=True)
-                    plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_50_ap50_{mAP_scores[0]:.3f}.png', dpi=200)
-                    plt.close('all')
+                # # Visualize with threshold 0.5
+                # if mAP_scores[0] < save_below_AP:
+                #     fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
+                #     plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
+                #     plot_boxes(im, boxes[scores>0.5], format='yxyx_px', ax=ax, show_image=False, color='red')
+                #     plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}_{iou_thres[0]}'
+                #     results_dir.mkdir(exist_ok=True)
+                #     (results_dir / 'plots').mkdir(exist_ok=True)
+                #     plot_dir.mkdir(exist_ok=True)
+                #     plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_50_ap50_{mAP_scores[0]:.3f}.png', dpi=200)
+                #     plt.close('all')
 
 
                 # Segmentation

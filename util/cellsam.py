@@ -40,7 +40,10 @@ class CellSAM():
         H, W = patch.shape[:2]
 
         mask, embedding, bounding_boxes = segment_cellular_image(patch, device=str(self.device))
-        # print('mask.shape', mask.shape)
+        if mask is None:
+            # No predictions
+            return np.array([]), np.array([]).reshape((-1, 4)), []
+
         mask = cv2.resize(mask, (H, W), interpolation=cv2.INTER_NEAREST)
 
         # print('mask.shape', mask.shape)
@@ -90,7 +93,7 @@ class CellSAM():
     def nms(self, boxes, scores, contours):
         kept_indices = pp.non_max_suppression(boxes, scores, threshold=self.nms_thres)
         if len(kept_indices) == 0:
-            return np.array([], dtype=float).reshape((0, 4)), np.array([], dtype=float).reshape((0,)), [], np.array([], dtype=float).reshape((0,2)), np.array([], dtype=float).reshape((0,))
+            return np.array([], dtype=float).reshape((0, 4)), np.array([], dtype=float).reshape((0,)), []
 
         boxes = boxes[kept_indices]
         contours = [contours[ii] for ii in kept_indices]

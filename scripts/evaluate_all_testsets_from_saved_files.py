@@ -110,8 +110,8 @@ if __name__=='__main__':
     # Configuration
 
     # Parameters
-    thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.975]
-    iou_thres = [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+    thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.975, 0.98, 0.985, 0.99, 0.995]
+    iou_thres = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 
     # use_fixed_patch_for_organoID = False  # If true, uses 4 patches per image and adjusts their size correspondingly.
     fixed_patch_size = (512, 2048)  # If None, uses 4 patches per image and adjusts their size correspondingly.
@@ -124,69 +124,92 @@ if __name__=='__main__':
     mAP_metric.warn_on_many_detections = False
 
     for model_name, sam_version, logging_name in [
-        # ('SSD_objects_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2024'),
-        # ('SSD_objects_2025', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2025'),
-        # ('SSD_objects_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2026'),
+        # # ('SSD_objects_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2024'),
+        # # ('SSD_objects_2025', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2025'),
+        # # ('SSD_objects_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_True_8_200_2026'),
         
         # ('SSD_objects_dataset_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_True_8_200_2024'),
         # ('SSD_objects_dataset_2025', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_True_8_200_2025'),
         # ('SSD_objects_dataset_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_True_8_200_2026'),
         
-        ('SSD_objects_dataset_patchsize_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2024'),
-        ('SSD_objects_dataset_patchsize_2025', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2025'),
-        ('SSD_objects_dataset_patchsize_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2026'),
+        # # ('SSD_objects_dataset_patchsize_2024', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2024'),
+        # # ('SSD_objects_dataset_patchsize_2025', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2025'),
+        # # ('SSD_objects_dataset_patchsize_2026', 'sam1', 'SSD_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_ssd_sampling_n_objects_dataset_patch_size_True_8_200_2026'),
         
-        ('FRCNNv2_bs5_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_5_batches_per_epoch_True_8_5_2024'),
-        ('FRCNNv2_bs5_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_5_batches_per_epoch_True_8_5_2025'),
-        ('FRCNNv2_bs5_objects_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_5_batches_per_epoch_True_8_5_2026'),
+        # # ('FRCNNv2_bs5_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_5_batches_per_epoch_True_8_5_2024'),
+        # # ('FRCNNv2_bs5_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_5_batches_per_epoch_True_8_5_2025'),
+        # # ('FRCNNv2_bs5_objects_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_5_batches_per_epoch_True_8_5_2026'),
         
-        ('FRCNNv2_bs10_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_10_batches_per_epoch_True_8_10_2024'),
-        ('FRCNNv2_bs10_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_10_batches_per_epoch_True_8_10_2025'),
-        ('FRCNNv2_bs10_objects_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_10_batches_per_epoch_True_8_10_2026'),
+        # # ('FRCNNv2_bs10_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_10_batches_per_epoch_True_8_10_2024'),
+        # # ('FRCNNv2_bs10_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_10_batches_per_epoch_True_8_10_2025'),
+        # # ('FRCNNv2_bs10_objects_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_10_batches_per_epoch_True_8_10_2026'),
         
-        ('FRCNNv2_bs20_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_20_batches_per_epoch_True_8_20_2024'),
-        ('FRCNNv2_bs20_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_20_batches_per_epoch_True_8_20_2025'),
-        ('FRCNNv2_bs20_objects_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_20_batches_per_epoch_True_8_20_2026'),
+        # # ('FRCNNv2_bs20_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_20_batches_per_epoch_True_8_20_2024'),
+        # # ('FRCNNv2_bs20_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_20_batches_per_epoch_True_8_20_2025'),
+        # # ('FRCNNv2_bs20_objects_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_20_batches_per_epoch_True_8_20_2026'),
 
-        ('FRCNNv2_bs50_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_50_batches_per_epoch_True_8_50_2024'),
-        ('FRCNNv2_bs50_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_50_batches_per_epoch_True_8_50_2025'),
-        ('FRCNNv2_bs50_objects_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_50_batches_per_epoch_True_8_50_2026'),
+        # # ('FRCNNv2_bs50_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_50_batches_per_epoch_True_8_50_2024'),
+        # # ('FRCNNv2_bs50_objects_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_50_batches_per_epoch_True_8_50_2025'),
+        # # ('FRCNNv2_bs50_objects_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_50_batches_per_epoch_True_8_50_2026'),
 
-        ('FRCNNv2_bs50_objects_dataset_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_50_batches_per_epoch_True_8_50_2024'),
-        ('FRCNNv2_bs50_objects_dataset_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_50_batches_per_epoch_True_8_50_2025'),
-        ('FRCNNv2_bs50_objects_dataset_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_50_batches_per_epoch_True_8_50_2026'),
+        # ('FRCNNv2_bs50_objects_dataset_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_50_batches_per_epoch_True_8_50_2024'),
+        # ('FRCNNv2_bs50_objects_dataset_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_50_batches_per_epoch_True_8_50_2025'),
+        # ('FRCNNv2_bs50_objects_dataset_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_50_batches_per_epoch_True_8_50_2026'),
 
-        ('FRCNNv2_bs50_objects_dataset_patchsize_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_patch_size_50_batches_per_epoch_True_8_50_2024'),
-        ('FRCNNv2_bs50_objects_dataset_patchsize_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_patch_size_50_batches_per_epoch_True_8_50_2025'),
-        ('FRCNNv2_bs50_objects_dataset_patchsize_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_patch_size_50_batches_per_epoch_True_8_50_2026'),
+        # # ('FRCNNv2_bs50_objects_dataset_patchsize_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_patch_size_50_batches_per_epoch_True_8_50_2024'),
+        # # ('FRCNNv2_bs50_objects_dataset_patchsize_2025', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_patch_size_50_batches_per_epoch_True_8_50_2025'),
+        # # ('FRCNNv2_bs50_objects_dataset_patchsize_2026', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_dataset_patch_size_50_batches_per_epoch_True_8_50_2026'),
 
-        ('FRCNNv2_bs100_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_100_batches_per_epoch_True_8_100_2024'),
+        # # ('FRCNNv2_bs100_objects_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_v2_sampling_n_objects_100_batches_per_epoch_True_8_100_2024'),
 
-        ('FRCNNv1_bs50_objects_dataset_2024', 'sam1', 'FRCNN_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_sampling_n_objects_dataset_True_8_50_2024'),
+        # ('FRCNNv1_bs50_objects_dataset_2024', 'sam1', 'FRCNN_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_sampling_n_objects_dataset_True_8_50_2024'),
         # ('FRCNNv1_bs50_objects_dataset_2025', 'sam1', 'FRCNN_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_sampling_n_objects_dataset_True_8_50_2025'),
         # ('FRCNNv1_bs50_objects_dataset_2026', 'sam1', 'FRCNN_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_20022025_baseline_frcnn_sampling_n_objects_dataset_True_8_50_2026'),
+
+        # # ('ours_small_short_2024', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_short_True_16_400_2024'),
+        # # ('ours_small_short_2025', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_short_True_16_400_2025'),
+        # # ('ours_small_short_2026', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_short_True_16_400_2026'),
         
-        ('pretrained_sam1_small_stage1', 'sam1', 'DETR_own_implementation_SAM_large_open_images_v4_5_original_data_NeurIPSCellSeg_train_DETR_own_SAM1_small_head_pretraining_True_4_400_2024'),
+        # ('ours_small_long_2024', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_True_16_400_2024_after_300_epochs'),
+        # ('ours_small_long_2025', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_True_16_400_2025_after_300_epochs'),
+        # ('ours_small_long_2026', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_True_16_400_2026_after_300_epochs'),
+        
+        # # ('ours_small_standard_2026', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_True_16_400_2026'),
+
+        # # ('ours_small_with_query_2024', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_with_query_True_16_400_2024'),
+        # # ('ours_small_with_query_2025', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_with_query_True_16_400_2025'),
+        # # ('ours_small_with_query_2026', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_with_query_True_16_400_2026'),
+        
+        # ('ours_large_standard_2024', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_large_head_finetuning_True_16_400_2024'),
+        
+        # ('final_long_600_epochs_2024', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_True_16_400_2024'),
+        # ('final_long_600_epochs_2025', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_True_16_400_2025'),
+        # ('final_long_600_epochs_2026', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_True_16_400_2026'),
+
+        ('final_long_bbox_loss_2024', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2024'),
+        ('final_long_bbox_loss_2025', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2025'),
+        ('final_long_bbox_loss_2026', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2026'),
+        
     ]:
-        model_name = f"{model_name}_{sam_version}"
+        model_name = f"impr_thres_{model_name}_{sam_version}"
         model = PredictionSAM(logging_name=logging_name, sam_version=sam_version)
         for ds_idx, ds in enumerate([
-            dl.OrganoID(split='test'),
-            dl.OrganoID(split='test_C'),
-            dl.OrganoID(split='test_Lung'),
-            dl.OrganoID(split='test_ACC'),
-            dl.OrganoID(split='test_only_mouse'),
-            dl.OrgaExtractor(split='all'),
-            dl.NewData(split='all'),
-            dl.OrgaSegment(split='test'),
-            dl.OrgaQuant(split='test'),
-            dl.Tellu(split='test'),
-            # dl.MultiOrg(split='test_macros'),
-            # dl.MultiOrg(split='test_normal'),
+            # dl.OrganoID(split='test'),
+            # dl.OrganoID(split='test_C'),
+            # dl.OrganoID(split='test_Lung'),
+            # dl.OrganoID(split='test_ACC'),
+            # dl.OrganoID(split='test_only_mouse'),
+            # dl.OrgaExtractor(split='all'),
+            # dl.NewData(split='all'),
+            # dl.OrgaSegment(split='test'),
+            # dl.OrgaQuant(split='test'),
+            # dl.Tellu(split='test'),
+            dl.MultiOrg(split='test_macros'),
+            dl.MultiOrg(split='test_normal'),
         ]):
             print(f'\n\n\n reached dataset {str(ds)} {ds.split} ====== \n\n\n')
-            # if (results_dir / f'{model_name}' / f'mean_segmentation_metrics_{str(ds)}_{ds.split}.csv').exists():
-            #     continue
+            if (results_dir / f'{model_name}' / f'mean_detection_metrics_{str(ds)}_{ds.split}.csv').exists():
+                continue
 
 
             detection_mAP = []
@@ -199,7 +222,7 @@ if __name__=='__main__':
             for idx in tqdm(range(len(ds))):
                 im, gt_mask, gt_boxes, im_path, im_ID = ds[idx]
                 # im, flatfield = dl.normalize(im)
-                print('gt_boxes.shape', gt_boxes.shape)
+                # print('gt_boxes.shape', gt_boxes.shape)
 
                 if fixed_patch_size is None:
                     H, W = im.shape[:2]
@@ -242,17 +265,17 @@ if __name__=='__main__':
                     'recall': recall_scores, 
                 }))
                 
-                # Visualize with threshold 0.5
-                if mAP_scores[0] < save_below_AP:
-                    fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
-                    plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
-                    plot_boxes(im, boxes[scores>0.5], format='yxyx_px', ax=ax, show_image=False, color='red')
-                    plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}_{iou_thres[0]}'
-                    results_dir.mkdir(exist_ok=True)
-                    (results_dir / 'plots').mkdir(exist_ok=True)
-                    plot_dir.mkdir(exist_ok=True)
-                    plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_50_ap50_{mAP_scores[0]:.3f}.png', dpi=200)
-                    plt.close('all')
+                # # Visualize with threshold 0.5
+                # if mAP_scores[0] < save_below_AP:
+                #     fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=200)
+                #     plot_boxes(im, gt_boxes, format='yxyx_px', ax=ax, color='blue')
+                #     plot_boxes(im, boxes[scores>0.5], format='yxyx_px', ax=ax, show_image=False, color='red')
+                #     plot_dir = results_dir / 'plots' / f'{str(ds)}_{model_name}_{iou_thres[0]}'
+                #     results_dir.mkdir(exist_ok=True)
+                #     (results_dir / 'plots').mkdir(exist_ok=True)
+                #     plot_dir.mkdir(exist_ok=True)
+                #     plt.savefig(plot_dir / f'{str(ds)}_{ds.split}_{idx}_thres_50_ap50_{mAP_scores[0]:.3f}.png', dpi=200)
+                #     plt.close('all')
 
 
                 # Segmentation

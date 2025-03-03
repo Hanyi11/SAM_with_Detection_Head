@@ -139,7 +139,7 @@ if __name__=='__main__':
 
     # Parameters
     thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.975]
-    iou_thres = [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+    iou_thres = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
 
     # use_fixed_patch_for_organoID = False  # If true, uses 4 patches per image and adjusts their size correspondingly.
     fixed_patch_size = (1024, 2048)  # If None, uses 4 patches per image and adjusts their size correspondingly.
@@ -160,16 +160,16 @@ if __name__=='__main__':
         ('cellsam', CellSAM()),
     ]:
         for ds_idx, ds in enumerate([
-            dl.OrganoID(split='test'),
-            dl.OrganoID(split='test_C'),
-            dl.OrganoID(split='test_Lung'),
-            dl.OrganoID(split='test_ACC'),
-            dl.OrganoID(split='test_only_mouse'),
-            dl.OrgaExtractor(split='all'),
-            dl.NewData(split='all'),
-            dl.OrgaSegment(split='test'),
-            dl.OrgaQuant(split='test'),
-            dl.Tellu(split='test'),
+            # dl.OrganoID(split='test'),
+            # dl.OrganoID(split='test_C'),
+            # dl.OrganoID(split='test_Lung'),
+            # dl.OrganoID(split='test_ACC'),
+            # dl.OrganoID(split='test_only_mouse'),
+            # dl.OrgaExtractor(split='all'),
+            # dl.NewData(split='all'),
+            # dl.OrgaSegment(split='test'),
+            # dl.OrgaQuant(split='test'),
+            # dl.Tellu(split='test'),
             dl.MultiOrg(split='test_macros'),
             dl.MultiOrg(split='test_normal'),
         ]):

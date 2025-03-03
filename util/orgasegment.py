@@ -49,6 +49,7 @@ class PredictorFromMasks():
             mask = cv2.imread(self.mask_dir / f'{patch_name}_masks_class-1.png', cv2.IMREAD_GRAYSCALE)
             if mask is None:
                 print(self.mask_dir / f'{patch_name}_masks_class-1.png')
+                return np.array([]), np.array([]).reshape((-1, 4)), []
         elif self.model == 'OrganoID':
             mask = skimage.io.imread(self.mask_dir / f'{patch_name}_id-labeled.tif')
         elif self.model == "AnyStar":
@@ -99,7 +100,7 @@ class PredictorFromMasks():
     def nms(self, boxes, scores, contours):
         kept_indices = pp.non_max_suppression(boxes, scores, threshold=self.nms_thres)
         if len(kept_indices) == 0:
-            return np.array([], dtype=float).reshape((0, 4)), np.array([], dtype=float).reshape((0,)), [], np.array([], dtype=float).reshape((0,2)), np.array([], dtype=float).reshape((0,))
+            return np.array([], dtype=float).reshape((0, 4)), np.array([], dtype=float).reshape((0,)), []
 
         boxes = boxes[kept_indices]
         contours = [contours[ii] for ii in kept_indices]
