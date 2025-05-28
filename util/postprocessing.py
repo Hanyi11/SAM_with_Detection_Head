@@ -806,6 +806,44 @@ def contour_to_points(geometry, shape, thickness=1):
     return np.stack(coords, axis=1)
 
 
+def contour_to_mask(geometry, shape):
+    """
+    Convert a Shapely geometry to a binary mask with only the contour drawn. 
+
+    Then extracts all point coordinates of the drawn contour.
+
+    Args:
+        geometry: Shapely Polygon or MultiPolygon.
+        shape: (H, W) tuple defining the mask size.
+        thickness: Line thickness in pixels.
+
+    Returns:
+        mask: (H, W) binary numpy array.
+    """
+    mask = np.zeros(shape, dtype=np.uint8)  # Initialize empty mask
+
+    if geometry.is_empty:
+        return mask
+
+    contours = []  # List to store all contours
+
+    # Process Polygon or MultiPolygon
+    if geometry.geom_type == "Polygon":
+        contours.append(np.array(geometry.exterior.coords, dtype=np.int32))  # Outer contour
+        contours.extend([np.array(ring.coords, dtype=np.int32) for ring in geometry.interiors])  # Inner holes
+    elif geometry.geom_type == "MultiPolygon":
+        for poly in geometry.geoms:
+            contours.append(np.array(poly.exterior.coords, dtype=np.int32))
+            contours.extend([np.array(ring.coords, dtype=np.int32) for ring in poly.interiors])
+    else:
+        raise ValueError(f"Unsupported geometry type: {geometry.geom_type}")
+
+    # Draw the contours (not filled)
+    cv2.fillPoly(mask, contours, 1)
+
+    return mask == 1
+
+
 def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, gt_masks, contours):
     num_preds = iou_matrix.shape[0]
     num_gts = iou_matrix.shape[1]

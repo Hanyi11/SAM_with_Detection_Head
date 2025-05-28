@@ -9,17 +9,24 @@ from . import dataloading as dl
 from . import postprocessing as pp
 from . import box_ops_numpy as bxn
 
-import detection_head_model as dhm
+from models.detr_own_impl_model import DetectionTransformer
+from models.training_module import TrainingModule
 sys.path.append('/home/icb/lion.gleiter/projects/organoid_sam/segment-anything/segment-anything')
 from segment_anything import build_sam_vit_l, predictor
 
 # Load SAM and detection head
 class SAMOS():
-    def __init__(self, checkpoint_path, default_thres=0.96):
-        self.detection_head = dhm.DetectionHead.load_from_checkpoint(checkpoint_path=checkpoint_path)
+    def __init__(self, 
+                 checkpoint_path='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints_trained_miccai/DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2024/DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2024-last.ckpt', 
+                 default_thres=0.96, 
+                 max_detections=500):
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        training_module = TrainingModule.load_from_checkpoint(checkpoint_path=checkpoint_path)
+        self.detection_head = training_module.model
+        self.detection_head.to(device=self.device)
         self.detection_head.eval()
         sam_model = build_sam_vit_l(checkpoint='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints/sam_vit_l_0b3195.pth')
-        self.sam_predictor = predictor.SamPredictor(sam_model=sam_model.to(device=self.detection_head.device))
+        self.sam_predictor = predictor.SamPredictor(sam_model=sam_model.to(device=self.device))
         self.nms_thres = 0.5
         self.image_embeddings = []
         self.offsets = []
@@ -29,6 +36,7 @@ class SAMOS():
         self.pred_contours = []
         self.pred_masks = []
         self.default_thres = default_thres
+        self.max_detections = max_detections
 
         self.manual_boxes = []
         self.manual_contours = []
@@ -46,25 +54,22 @@ class SAMOS():
         self.manual_contours = []
 
     def predict_boxes(self, image_embedding):
-        device = self.detection_head.device
-        image_embedding = image_embedding['features'].to(device)
-        pos_embedding = self.detection_head.position_embedding(image_embedding) # bs x 256 x 64 x 64
+        image_embedding = image_embedding['features']  # .to(self.device)
+        # pos_embedding = self.detection_head.position_embedding(image_embedding) # bs x 256 x 64 x 64
+
+        print(image_embedding.shape)
 
         # forward
         outputs = self.detection_head.forward(
-            query_embedding=self.detection_head.query_embed.weight,
-            image_embedding=image_embedding, 
-            pos_embedding=pos_embedding
-        )
-        scores = torch.nn.functional.softmax(outputs['pred_logits'], dim=-1)
-        scores = scores[0, :, 0]
-        boxes = outputs['pred_boxes'][0]
+            image_embeddings=image_embedding,
+        )[0]
+        scores = outputs['scores']
+        boxes = outputs['boxes']
         return scores, boxes #.cpu().numpy()
 
     def predict_masks(self, boxes, offset_x=0, offset_y=0, image_embedding=None):
         """`boxes` are assumed to be in y_center, x_center, h, w format normalized to [0, 1]
         """
-        # device = self.detection_head.device
         if boxes.shape[0]==0:
             return []
 
@@ -74,12 +79,13 @@ class SAMOS():
                 setattr(self.sam_predictor, k, v)
 
         # [cy cx h w] --> [x y x y]
-        transformed_boxes = torch.stack((
-            boxes[:, 1] - boxes[:, 3] / 2,
-            boxes[:, 0] - boxes[:, 2] / 2,
-            boxes[:, 1] + boxes[:, 3] / 2,
-            boxes[:, 0] + boxes[:, 2] / 2
-        ), dim=1) * 1024
+        transformed_boxes = boxes
+        # torch.stack((
+        #     boxes[:, 1] - boxes[:, 3] / 2,
+        #     boxes[:, 0] - boxes[:, 2] / 2,
+        #     boxes[:, 1] + boxes[:, 3] / 2,
+        #     boxes[:, 0] + boxes[:, 2] / 2
+        # ), dim=1) * 1024
 
         # Forward
         masks, _, _ = self.sam_predictor.predict_torch(
@@ -156,7 +162,14 @@ class SAMOS():
         pred_scores_patch = pred_scores_patch.cpu().numpy()
         pred_boxes_patch = pred_boxes_patch.cpu().numpy()
 
-        pred_boxes_patch = bxn.cxcywh_to_xyxy(pred_boxes_patch) * size + np.array([[offset_y, offset_x, offset_y, offset_x]])
+        # pred_boxes_patch = bxn.cxcywh_to_xyxy(pred_boxes_patch) * size + np.array([[offset_y, offset_x, offset_y, offset_x]])
+        pred_boxes_patch = np.stack((
+            pred_boxes_patch[:, 1],
+            pred_boxes_patch[:, 0],
+            pred_boxes_patch[:, 3],
+            pred_boxes_patch[:, 2],
+        ), axis=1)  # xyxy to yxyx
+        pred_boxes_patch = pred_boxes_patch / 1024 * size + np.array([[offset_y, offset_x, offset_y, offset_x]])
 
         patch_numbers = np.ones(pred_scores_patch.shape, dtype=int) * patch_idx
 
@@ -202,16 +215,23 @@ class SAMOS():
         # Postprocessing
         self.filter_diameter(min_diameter, predict_masks=predict_masks)
         
-        # if predict_masks:
-        #     keep_masks = [contour.area >= 100 for contour in self.pred_contours]
-        #     self.pred_contours = [c for c, keep in zip(self.pred_contours, keep_masks) if keep]
-        #     self.pred_boxes = self.pred_boxes[keep_masks]
-        #     self.pred_patch_numbers = self.pred_patch_numbers[keep_masks]
-        #     self.offsets = self.offsets[keep_masks]
-        #     self.pred_scores = self.pred_scores[keep_masks]
         
-        # TODO: Remove boxes at patch borders
 
+        
+        # Only keep top max_detections
+        print('len(self.pred_scores)', self.pred_scores.shape[0])
+        sorted_indices = np.argsort(self.pred_scores)[::-1]
+        sorted_indices = sorted_indices[:5000]
+
+        self.pred_boxes = self.pred_boxes[sorted_indices]
+        self.pred_scores = self.pred_scores[sorted_indices]
+        self.pred_patch_numbers = self.pred_patch_numbers[sorted_indices]
+        self.offsets = self.offsets[sorted_indices]
+        self.pred_contours = [self.pred_contours[i] for i in sorted_indices]
+
+
+
+        # print('after filter_diameter', time.time())
         self.pred_boxes, self.pred_scores, self.pred_contours, self.offsets, self.pred_patch_numbers = \
             self.nms(self.pred_boxes, 
                      self.pred_scores, 
@@ -219,8 +239,22 @@ class SAMOS():
                      self.pred_patch_numbers, 
                      self.offsets, 
                      predict_masks=predict_masks)
+
         if self.pred_boxes.shape[0] == 0:
             return self.pred_contours, self.pred_boxes, self.pred_scores
+        
+
+
+        
+        # Only keep top max_detections
+        sorted_indices = np.argsort(self.pred_scores)[::-1]
+        sorted_indices = sorted_indices[:self.max_detections]
+
+        self.pred_boxes = self.pred_boxes[sorted_indices]
+        self.pred_scores = self.pred_scores[sorted_indices]
+        self.pred_patch_numbers = self.pred_patch_numbers[sorted_indices]
+        self.offsets = self.offsets[sorted_indices]
+        self.pred_contours = [self.pred_contours[i] for i in sorted_indices]
 
         # Threshold boxes
         masks, boxes, scores = self.set_threshold(self.default_thres, predict_masks=predict_masks)
@@ -286,16 +320,9 @@ class SAMOS():
     def set_threshold(self, conf_thres, predict_masks=True):
         keep_indices = self.pred_scores >= conf_thres
         pred_boxes = self.pred_boxes[keep_indices]
-        pred_patch_numbers = self.pred_patch_numbers[keep_indices]
-        pred_offsets = self.offsets[keep_indices]
         pred_scores = self.pred_scores[keep_indices]
         if predict_masks:
-            pred_contours = [c for c, keep in zip(self.pred_contours, keep_indices) if keep]
-            pred_masks, pred_boxes, pred_scores = pp.stitch_contours(pred_contours, 
-                                                                     pred_patch_numbers, 
-                                                                     pred_offsets, 
-                                                                     pred_boxes, 
-                                                                     pred_scores)
+            pred_masks = [c for c, keep in zip(self.pred_contours, keep_indices) if keep]
         else:
             pred_masks = None
         return pred_masks, pred_boxes, pred_scores

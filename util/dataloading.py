@@ -53,7 +53,7 @@ def is_empty(image):
         return False
     
 
-def normalize(image, smoothness=10, correct_bg=True):
+def normalize(image, smoothness=10, correct_bg=True, grayscale=False, fix_median=False):
     # Normalize dtype
     image = image.astype(float)
 
@@ -67,6 +67,11 @@ def normalize(image, smoothness=10, correct_bg=True):
             assert np.max(np.abs(image[:, :, 3] / (image[:, :, 3]).max() - 1)) < 0.01, np.unique(image[:, :, 3])
             image = image[:, :, :3]
         assert image.shape[2]==3, image.shape
+
+    if grayscale:
+        # Convert to grayscale
+        image = np.mean(image, axis=2)
+        image = np.stack([image, image, image], axis=-1)
 
     # Normalize range
     image /= np.maximum(np.quantile(image, 0.99, axis=(0,1), keepdims=True), 1e-3)
@@ -104,7 +109,15 @@ def normalize(image, smoothness=10, correct_bg=True):
     # Normalize quantiles
     lower = np.quantile(image, 0.001, axis=(0,1), keepdims=True)
     upper = np.quantile(image, 0.999, axis=(0,1), keepdims=True)
-    image = (image - lower) / np.maximum(upper - lower, 1e-2)
+
+    if not fix_median:
+        # Set lower quantiles to 0, upper quantiles to 1
+        image = (image - lower) / np.maximum(upper - lower, 1e-2)
+    else:
+        # Set median to 128 and stretch the image until the lower quantiles are at 0 or the upper quantiles at 1.
+        median = np.quantile(image, 0.5, axis=(0,1), keepdims=True)
+        scaling = 2 * np.maximum(np.abs(upper-median), np.abs(lower-median))
+        image = 0.5 + (image - median) / np.maximum(scaling, 1e-2)
     image = np.clip(image * 255, 0, 255).astype(np.uint8)
 
     if correct_bg:
