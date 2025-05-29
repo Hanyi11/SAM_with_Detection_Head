@@ -15,3 +15,7 @@ tqdm==4.66.6
 omegaconf==2.3.0
 faster-coco-eval
 torchmetrics
+hydra-core
+jupyterlab
+ipykernel
+monai

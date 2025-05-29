@@ -15,7 +15,7 @@ seed: 2024
 accumulate_grad_batches: 1
 batch_size: 8
 batches_per_epoch: 100
-max_epochs: 900
+max_epochs: 1000
 use_sampler: true
 sampling_groups: ["n_objects"]
 max_oversampling: 10.0
@@ -29,7 +29,7 @@ checkpoint_path: null
 # Learning rate and optimizer parameters
 learning_rate: 1e-4
 weight_decay: 1e-4
-lr_drop: 300
+lr_drop: 800
 
 # Logging and checkpointing
 project_name: "OrganoidDetection"

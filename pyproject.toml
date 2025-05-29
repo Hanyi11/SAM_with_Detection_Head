@@ -1,0 +1,58 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[project]
+requires-python = ">=3.11"
+name = "samos"
+
+
+[tool.poetry]
+version = "0.0.0"
+description = "Generalizable Model for Organoid Instance Detection & Segmentation"
+authors = []
+readme = "README.md"
+packages = [{ include = "samos", from = "src" }]
+
+
+[tool.poetry.dependencies]
+BaSiCPy = "*"
+faster-coco-eval = "*"
+h5py = "*"
+hydra-core = "*"
+imagecodecs = "*"
+imageio = "*"
+iopath = "*"
+ipykernel = "*"
+jax = "*"
+jaxlib = "*"
+jupyterlab = "*"
+lightning = "*"
+matplotlib = "*"
+monai = "*"
+numpy = "*"
+opencv-python-headless = "*"
+pandas = "*"
+pillow = "*"
+scikit-image = "*"
+scikit-learn = "*"
+scipy = "*"
+seaborn = "*"
+tabulate = "*"
+tifffile = "*"
+torch = "*"
+torchmetrics = "*"
+torchvision = "*"
+tqdm = "*"
+umap-learn = "*"
+wandb = "*"
+einops = "*"
+loguru = "*"
+omegaconf = "*"
+xformers = { version = "*", source = "pytorch" }
+
+[[tool.poetry.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu126"
+priority = "explicit"

@@ -263,6 +263,23 @@ class RandFlip(tfs.RandomizableTransform):
         return np.stack((xmin, ymin, xmax, ymax), axis=1)
 
 
+class RandInvertIntensity(tfs.RandomizableTransform):
+    def __init__(self, prob = 0.5, do_transform = True):
+        super().__init__(prob, do_transform)
+
+    def randomize(self):
+        super().randomize(None)
+        self.invert = self.R.choice(a=[True, False])
+
+    def __call__(self, img):
+        self.randomize()
+
+        if self.invert:
+            img = 1 - img
+
+        return img
+
+
 class Augmentation():
     def __init__(self):
         self.image_augmentation = tfs.OneOf(
@@ -271,6 +288,7 @@ class Augmentation():
                 tfs.Compose((
                     tfs.RandGaussianSmooth(prob=0.8),
                     tfs.RandAdjustContrast(prob=0.1),
+                    RandInvertIntensity(prob=0.1),
                     tfs.RandGaussianNoise(prob=0.1),
                 ))
             ),
@@ -289,6 +307,15 @@ class Augmentation():
 
         return img, boxes
 
+
+class Normalize():
+    def __call__(self, image: PIL.Image):
+        arr = torchvision.transforms.functional.pil_to_tensor(image)
+
+        arr = arr / arr.max()
+        print('arr.shape', arr.shape)
+
+        return arr
 
 
 def prepare_coco_targets(image: PIL.Image, target):
@@ -349,7 +376,8 @@ class ImageDataset(Dataset):
     def __init__(self, 
                  data_split: Literal["train", "test", "val"], 
                  data_split_dirs: List[str],
-                 backbone_name: Literal["FRCNN", "FRCNNv2", "SSD", "DETR", "DETR_own_implementation"], 
+                 backbone_name: Literal["FRCNN", "FRCNNv2", "SSD", "DETR", "DETR_own_implementation",
+                                        "resnet50", "SAM_base_images", "SAM_large_images"], 
                  decoder = None,
                  base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale_miccai",
                  augmentation: bool = True,
@@ -386,6 +414,8 @@ class ImageDataset(Dataset):
             self.transforms = coco.make_coco_transforms('train' if self.data_split=='train' else 'val')
         elif self.backbone == 'DETR_own_implementation':
             self.transforms = FasterRCNN_ResNet50_FPN_Weights.COCO_V1.transforms()
+        elif self.backbone in ["resnet50", "SAM_base_images", "SAM_large_images"]:
+            self.transforms = Normalize()
         else: 
             raise ValueError(f"backbone {self.backbone} is not supported.")
 
@@ -466,11 +496,12 @@ class ImageDataset(Dataset):
 
 
         # Appends Open Images file paths to self.image_files but not to self.label_files
+        oi_split = 'train'  # 'validation
         for oi_path in open_image_dirs:
-            path = Path('/ictstr01/groups/shared/users/lion.gleiter') / oi_path / 'validation'
+            path = Path('/ictstr01/groups/shared/users/lion.gleiter') / oi_path / oi_split
             self.image_files += sorted(list(path.glob('*.jpg')))
 
-        self.oi_annotation = pd.read_csv('/ictstr01/groups/shared/users/lion.gleiter/open_images_v4_5/original_data/validation-annotations-bbox.csv')
+        self.oi_annotation = pd.read_csv(f'/ictstr01/groups/shared/users/lion.gleiter/open_images_v4_5/original_data/{oi_split}-annotations-bbox.csv')
 
         # Update metadata.
         # self.is_empty = np.zeros(len(self.image_files), dtype=bool)
@@ -647,6 +678,7 @@ class ImageDataModule(pl.LightningDataModule):
                                               data_split="train", 
                                               augmentation=True,
                                               **self.kwargs)
+            print('len(train_dataset)', len(self.train_dataset))
         
         if (stage == 'fit') or (stage == 'validate') or (stage is None):
             self.val_datasets = [ImageDataset(
@@ -655,6 +687,7 @@ class ImageDataModule(pl.LightningDataModule):
                 augmentation=False,
                 **self.kwargs
             ) for val_dir_name in self.val_dir_names]
+            print('len(val_datasets)', [len(ds) for ds in self.val_datasets])
 
 
 

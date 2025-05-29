@@ -19,6 +19,15 @@ import hydra
 from omegaconf import DictConfig
 from omegaconf import open_dict
 
+import sys
+import_dir = '/home/icb/lion.gleiter/projects/organoid_sam/external'
+if import_dir not in sys.path:
+    sys.path.append(import_dir)
+import_dir = '/home/icb/lion.gleiter/projects/organoid_sam/segment-anything/segment-anything'
+if import_dir not in sys.path:
+    sys.path.append(import_dir)
+
+
 import models.detr_own_impl_frcnn_bb_model
 import models.detr_own_impl_model
 import models.embeddings_datamodule
@@ -26,61 +35,9 @@ import models.training_module
 import models.faster_rcnn_model
 import models.image_datamodule
 import models.ssd_model
+import models.samos_anchor_detr
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-
-
-
-# # --train_dir="" --val_dir="" --sub_name="SAM_large"
-# def get_args_parser():
-#     parser = argparse.ArgumentParser(description='Set Detection Head', add_help=False)
-
-#     # Directories for training and validation datasets
-#     parser.add_argument('--train_dirs', type=str, nargs='+', required=True, help='List of directories containing the training dataset.')
-#     parser.add_argument('--val_dirs', type=str, nargs='+', required=True, help='List of directories containing the validation dataset.')
-#     parser.add_argument('--model_config', type=str, required=True, help='Decoder architecture config')
-#     #                     '["FRCNN" (Faster R-CNN), "FRCNNv2" (Faster R-CNN v2), "DETR" (DETR transformer decoder), "SSD" (SSD decoder)]')
-#     # parser.add_argument('--backbone', type=str, required=False, default='default', help="""
-#     #                         Backbone which computes embeddings used as decoder input: [
-#     #                             "SSD" (SSD backbone), 
-#     #                             "FRCNN" (Faster R-CNN ResNet incl. FPN), 
-#     #                             "FRCNNv2", 
-#     #                             "DETR" (DETR backbone),
-#     #                             "SAM_large" (SAM large ViT), 
-#     #                             "SAM2_large" (SAM2 large ViT),
-#     #                             "Cellpose" (Cellpose features ???),
-#     #                             "FM_concat" (SAM + SAM2 + Cellpose features concatenated),
-#     #                         ]
-#     #                     """)
-#     parser.add_argument('--batch_size', type=int, 
-#                         help='Number of samples in each batch.')
-#     parser.add_argument('--batches_per_epoch', type=int, 
-#                         help="""Define how many batches are used during training of each epoch. The data 
-#                         is then sampled by a RandomSample instead of using shuffle in the data loader""")
-#     parser.add_argument('--use_sampler', action='store_true', 
-#                         help='If true the model is trained with a fixed size of batches per epoch'
-#                         'instead of using possibly all data in the datset each epoch. Is useful if you want to train models on multiple datasets and compare them.')
-#     parser.add_argument('--max_oversampling', type=float, 
-#                         help='Limits how often training samples may be drawn compared to no group-based sampling. If other groups are undersampled, the difference in sampling frequency might be larger.')
-#     parser.add_argument('--n_validation_samples', type=int, 
-#                         help='If > 0, only evaluates this amount of validation samples from each val set during training.')
-    
-#     # Learning rate and optimizer parameters
-#     parser.add_argument('--learning_rate', type=float, help='Learning rate for the optimizer.')
-#     parser.add_argument('--weight_decay', type=float, help='Weight decay for the optimizer.')
-#     parser.add_argument('--lr_drop', type=int, help='Number of epochs before dropping the learning rate.')
-
-#     # Training parameters
-#     parser.add_argument('--max_epochs', type=int, help='Maximum number of epochs for training.')
-#     parser.add_argument('--gradient_clip_val', type=float, help='Gradient clipping value.')
-
-#     # Logging and checkpointing parameters
-#     parser.add_argument('--sub_name', type=str, default='default', help='Sub-name for detailed identification of the checkpoint.')
-
-#     # Fine-tuning specific parameters
-#     parser.add_argument('--checkpoint_path', type=str, help='Path to the pre-trained checkpoint for fine-tuning.')
-
-#     return parser
 
 
 
@@ -97,6 +54,12 @@ def initialize_model_and_dataset(args: dict):
     elif args.backbone_name == "SSD":
         datamodule = models.image_datamodule.ImageDataModule(**args)
         raise NotImplementedError()
+    elif args.backbone_name == "SAM_base_images":
+        datamodule = models.image_datamodule.ImageDataModule(**args)
+    elif args.backbone_name == "SAM_large_images":
+        datamodule = models.image_datamodule.ImageDataModule(**args)
+    elif args.backbone_name == "resnet50":
+        datamodule = models.image_datamodule.ImageDataModule(**args)
     elif args.backbone_name == "SAM_large":
         datamodule = models.embeddings_datamodule.EmbeddingDataModule(**args)
     elif args.backbone_name == "SAM2_large":
@@ -121,6 +84,8 @@ def initialize_model_and_dataset(args: dict):
         decoder = models.detr_own_impl_model.DetectionTransformer(**args)
     elif args.decoder == "DETR_own_image_based":
         decoder = models.detr_own_impl_frcnn_bb_model.DetectionTransformer(**args)
+    elif args.decoder == "AnchorDETR":
+        decoder = models.samos_anchor_detr.DetectionTransformer(**args)
     elif args.decoder == "DETR":
         raise NotImplementedError()
     elif args.decoder == "FRCNN":

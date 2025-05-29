@@ -1,0 +1,107 @@
+# @package _global_
+defaults:
+  - _self_
+
+# Model configuration
+decoder: "AnchorDETR"
+backbone_name: ${backbone}
+
+# Backbone
+backbone: resnet50  # 'resnet50' or "SAM_large_images" or "SAM_base_images"
+dilation: true
+num_feature_levels: 1
+finetune_only_class_linear: false
+
+# # Learning rate and optimizer parameters
+# learning_rate: 1e-4
+# weight_decay: 1e-4
+# lr_drop: 200
+batches_per_epoch: 100
+batch_size: 8
+accumulate_grad_batches: 1
+
+# Optimization
+learning_rate: 1e-4
+lr_backbone_names: ["backbone"]
+lr_backbone: 1e-5
+# lr_linear_proj_names: []
+# lr_linear_proj_mult: 0.1
+# batch_size: 1
+weight_decay: 1e-4
+# epochs: 50
+# lr_drop: 40
+# lr_drop_epochs: null
+# clip_max_norm: 0.1
+# sgd: false
+
+# Model parameters
+frozen_weights: null
+
+
+# Transformer
+enc_layers: 6
+dec_layers: 6
+dim_feedforward: 1024
+hidden_dim: 256
+dropout: 0.0
+nheads: 8
+num_query_position: 300
+num_query_pattern: 3
+spatial_prior: learned
+attention_type: RCDA
+
+# Segmentation
+masks: false
+
+# Loss
+aux_loss: true
+
+# Matcher
+set_cost_class: 2
+set_cost_bbox: 5
+set_cost_giou: 2
+
+# Loss coefficients
+mask_loss_coef: 1
+dice_loss_coef: 1
+cls_loss_coef: 2
+bbox_loss_coef: 5
+giou_loss_coef: 2
+focal_alpha: 0.25
+
+# Dataset parameters
+# dataset_file: coco
+# eval_set: val
+# coco_path: /data/coco
+# coco_panoptic_path: null
+# remove_difficult: false
+# output_dir: /data/detr-workdir/r50-dc5
+device: cuda
+seed: 42
+# resume: ''
+# auto_resume: false
+# start_epoch: 0
+# eval: false
+# num_workers: 2
+# cache_mode: false
+
+# Matcher settings
+
+# Loss coefficients
+
+# Model architecture and transformer settings
+# num_queries: 300
+# transformer_dim: 256
+# dropout: 0.1
+# nheads: 8
+# dim_feedforward: 512
+# num_layers_low_res: 6
+# num_layers_medium_res: 0
+# num_layers_high_res: 0
+# pre_norm: true
+# gradient_clip_val: 0.1
+
+# Logging and checkpointing
+project_name: "OrganoidDetection"
+sub_name: "anchor_detr"
+log_dir: "logs/"
