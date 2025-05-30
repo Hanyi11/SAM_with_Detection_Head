@@ -111,7 +111,7 @@ class SAMBackbone(nn.Module):
 
 
 def build(args):
-    num_classes = 2
+    # num_classes = 2
     # device = torch.device(args.device)
 
     if args.backbone_name.startswith('SAM'):
@@ -130,13 +130,13 @@ def build(args):
         num_feature_levels=args.num_feature_levels,
         aux_loss=args.aux_loss
     )
-    print('args.finetune_only_class_linear', args.finetune_only_class_linear)
     if args.finetune_only_class_linear:
         # Freeze the all parameters except transformer.class_embed
         for name, param in model.named_parameters():
             if not name.startswith('transformer.class_embed'):
                 param.requires_grad = False
-    print('args.finetune_only_class_linear', args.finetune_only_class_linear)
+            else:
+                print(f'Trainable parameter: {name}: {param.requires_grad}')
 
     matcher = build_matcher(args)
     weight_dict = {'loss_ce': args.cls_loss_coef, 'loss_bbox': args.bbox_loss_coef}
@@ -156,7 +156,7 @@ def build(args):
     if args.masks:
         losses += ["masks"]
     # num_classes, matcher, weight_dict, losses, focal_alpha=0.25
-    criterion = SetCriterion(num_classes, matcher, weight_dict, losses, focal_alpha=args.focal_alpha)
+    criterion = SetCriterion(args.num_classes, matcher, weight_dict, losses, focal_alpha=args.focal_alpha)
     # criterion.to(device)
     postprocessors = {'bbox': PostProcess()}
     return model, criterion, postprocessors
@@ -183,6 +183,8 @@ class DetectionTransformer(nn.Module):
 
         Args:
             images: a torch.Tensor of shape [B, 1, 1024, 1024].
+
+        Returned boxes are expected to be in the format [x1, y1, x2, y2] in pixel coordinates.
         """
         output = self.forward_images(images)
 
@@ -220,11 +222,26 @@ class DetectionTransformer(nn.Module):
     def forward_batch(self, batch):
         images, targets = batch[0], batch[1]
 
+        # Convert target boxes from [x, y, x, y] in [0, 1024] px to [cx, cy, w, h] in [0, 1] range
+        targets_updated = []
+        for t in targets:
+            boxes = t['boxes']
+            boxes = torch.stack([
+                (boxes[:, 0] + boxes[:, 2]) / 2,  # cx
+                (boxes[:, 1] + boxes[:, 3]) / 2,  # cy
+                boxes[:, 2] - boxes[:, 0],  # w
+                boxes[:, 3] - boxes[:, 1]  # h
+            ], dim=1) / 1024.0
+            t['boxes'] = boxes
+            targets_updated.append(t)
+
         # Forward
         outputs = self.model(images)
 
         # Loss
-        loss_dict = self.criterion(outputs, targets)
+        # print('outputs', outputs)
+        # print('targets', targets_updated)
+        loss_dict = self.criterion(outputs, targets_updated)
         weight_dict = self.criterion.weight_dict
         total_loss = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
 

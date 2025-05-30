@@ -313,7 +313,6 @@ class Normalize():
         arr = torchvision.transforms.functional.pil_to_tensor(image)
 
         arr = arr / arr.max()
-        print('arr.shape', arr.shape)
 
         return arr
 
@@ -606,9 +605,10 @@ class ImageDataset(Dataset):
         if self.augmentation is not None:
             image, targets = self.augmentation(image, targets)
 
+        targets = torch.tensor(targets, dtype=torch.float32)
 
-        # Pad with zeros to 1024, 1024 for DETR own impl
-        if self.decoder == "DETR_own_image_based":
+        # Pad with zeros to 1024, 1024 for DETR implementations and set labels to 0.
+        if (self.decoder == "DETR_own_image_based") or (self.decoder.startswith("AnchorDETR")):
             image = torchvision.transforms.functional.pad(
                 image, padding=(0, 0, 1024 - image.shape[-1], 1024 - image.shape[-2]),
                 fill=0, padding_mode='constant'
@@ -616,8 +616,9 @@ class ImageDataset(Dataset):
             assert image.shape[-1]==1024, image.shape
             assert image.shape[-2]==1024, image.shape
 
-        targets = torch.tensor(targets, dtype=torch.float32)
-        labels = torch.ones((targets.shape[0],), dtype=torch.int64)
+            labels = torch.zeros((targets.shape[0],), dtype=torch.int64)
+        else:
+            labels = torch.ones((targets.shape[0],), dtype=torch.int64)
         image_id = torch.tensor([idx])
         area = (targets[:, 3] - targets[:, 1]) * (targets[:, 2] - targets[:, 0])
         is_crowd = torch.zeros((targets.shape[0],), dtype=torch.bool)

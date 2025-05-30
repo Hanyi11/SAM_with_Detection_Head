@@ -11,6 +11,7 @@ backbone: resnet50  # 'resnet50' or "SAM_large_images" or "SAM_base_images"
 dilation: true
 num_feature_levels: 1
 finetune_only_class_linear: false
+num_classes: 1
 
 # # Learning rate and optimizer parameters
 # learning_rate: 1e-4

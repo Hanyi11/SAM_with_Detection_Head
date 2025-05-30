@@ -12,7 +12,7 @@
 
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=15
-#SBATCH --mem=100G
+#SBATCH --mem=50G
 #SBATCH --constraint=a100_80gb
 
 #SBATCH --time=01-00:00:00 # Job runtime 02-00:00:00
