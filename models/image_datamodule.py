@@ -495,7 +495,14 @@ class ImageDataset(Dataset):
 
 
         # Appends Open Images file paths to self.image_files but not to self.label_files
-        oi_split = 'train'  # 'validation
+        if self.data_split == 'train':
+            oi_split = 'train'
+        elif self.data_split == 'val':
+            oi_split = 'validation'
+        elif self.data_split == 'test':
+            oi_split = 'test'
+        else:
+            raise ValueError(self.data_split)
         for oi_path in open_image_dirs:
             path = Path('/ictstr01/groups/shared/users/lion.gleiter') / oi_path / oi_split
             self.image_files += sorted(list(path.glob('*.jpg')))
