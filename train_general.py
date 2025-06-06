@@ -104,6 +104,9 @@ def initialize_model_and_dataset(args: dict):
 
 def train(args) -> None:
     # Print all parameters before training
+    torch.cuda.memory._record_memory_history(
+       max_entries=100000
+   )
     print("Training Parameters:")
     for arg in vars(args):
         print(f"{arg}: {getattr(args, arg)}")
@@ -203,6 +206,15 @@ def train(args) -> None:
     )
 
     trainer.fit(model, data_module, ckpt_path=ckpt_file_resume)
+
+    snapshot_file = 'memory_run_0'
+    try:
+        torch.cuda.memory._dump_snapshot(f"{snapshot_file}.pickle")
+    except Exception as e:
+        print(f"Failed to capture memory snapshot {e}")
+
+    # Stop recording memory snapshot history.
+    torch.cuda.memory._record_memory_history(enabled=None)
 
 
     # Testing of the last checkpoint model

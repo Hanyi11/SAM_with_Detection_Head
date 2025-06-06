@@ -371,6 +371,32 @@ def prepare_coco_targets(image: PIL.Image, target):
 
 
 
+
+class CachedDataset(Dataset):
+    def __init__(self, 
+                 dataset):
+        super().__init__()
+        self.dataset = dataset
+        self.cache = []
+        self.n_samples = 10
+        self.metadata = self.dataset.metadata
+
+        for i in range(self.n_samples):
+            self.cache.append(self.dataset[i])
+
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        idx = idx % self.n_samples
+
+        return self.cache[idx]
+
+
+
+
+
+
 class ImageDataset(Dataset):
     def __init__(self, 
                  data_split: Literal["train", "test", "val"], 
@@ -682,19 +708,19 @@ class ImageDataModule(pl.LightningDataModule):
     def setup(self, stage: Literal["fit", "validate", None] = None):
         # Set datasets depending on the stage
         if stage == 'fit' or stage is None:
-            self.train_dataset = ImageDataset(data_split_dirs=self.train_dir_names, 
+            self.train_dataset = CachedDataset(ImageDataset(data_split_dirs=self.train_dir_names, 
                                               data_split="train", 
                                               augmentation=True,
-                                              **self.kwargs)
+                                              **self.kwargs))
             print('len(train_dataset)', len(self.train_dataset))
         
         if (stage == 'fit') or (stage == 'validate') or (stage is None):
-            self.val_datasets = [ImageDataset(
+            self.val_datasets = [CachedDataset(ImageDataset(
                 data_split_dirs=[val_dir_name],
                 data_split="val", 
                 augmentation=False,
                 **self.kwargs
-            ) for val_dir_name in self.val_dir_names]
+            )) for val_dir_name in self.val_dir_names]
             print('len(val_datasets)', [len(ds) for ds in self.val_datasets])
 
 
@@ -766,12 +792,12 @@ class ImageDataModule(pl.LightningDataModule):
         load the data in a standard sequential manner.
         """
         print('self.test_dir_names', self.test_dir_names)
-        test_datasets = [ImageDataset(
+        test_datasets = [CachedDataset(ImageDataset(
             data_split_dirs=[test_dir_name],
             data_split="test", 
             augmentation=False,
             **self.kwargs
-        ) for test_dir_name in self.test_dir_names]
+        )) for test_dir_name in self.test_dir_names]
         print('test_datasets', test_datasets)
 
         return [DataLoader(test_dataset, 

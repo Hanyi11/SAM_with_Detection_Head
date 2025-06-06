@@ -80,6 +80,17 @@ class TrainingModule(pl.LightningModule):
         self.log('train_loss', total_loss, on_step=False, on_epoch=True)
         self.log_dict({f'train_{k}': v for k, v in loss_dict.items()}, on_step=False, on_epoch=True)
         self.log_dict({f'train_{k}': v for k, v in metrics_dict.items()}, on_step=False, on_epoch=True)
+
+        
+        if batch_idx==0:
+            images = batch[0]
+            targets = batch[1]
+            with torch.no_grad():
+                pred = self.model.forward(images)
+            target = targets[0]
+            if 'image_path' in target.keys():
+                self.visualize_prediction(target['image_path'], pred[0], target['boxes'],
+                                          f'example_pred@0.5/training')
         
         # self.training_step_outputs.append({'loss': total_loss, 'giou': metrics_dict['giou']}) #.detach().cpu()
 
@@ -104,8 +115,8 @@ class TrainingModule(pl.LightningModule):
         boxes_pred = pred['boxes'].cpu().numpy().copy()
         scores_pred = pred['scores'].cpu().numpy().copy()
         gt_boxes = gt_boxes.cpu().numpy().copy()
-        print('scores', scores_pred[:10])
-        print('boxes_pred', boxes_pred[:10])
+        # print('scores', scores_pred[:10])
+        # print('boxes_pred', boxes_pred[:10])
         boxes_pred = boxes_pred[scores_pred>0.3]
         scores_pred = scores_pred[scores_pred>0.3]
 
@@ -115,8 +126,8 @@ class TrainingModule(pl.LightningModule):
 
         boxes_pred = boxes_pred[sorted_indices]
         scores_pred = scores_pred[sorted_indices]
-        print('scores', scores_pred[:10])
-        print('boxes_pred', boxes_pred[:10])
+        # print('scores', scores_pred[:10])
+        # print('boxes_pred', boxes_pred[:10])
         
         fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=50)
         plot_boxes(im, gt_boxes, format='xyxy_px', ax=ax, show_image=True, color='blue')
