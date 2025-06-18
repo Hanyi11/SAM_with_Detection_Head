@@ -10,6 +10,11 @@ test_dirs: ["OrgaExtractor_all", "NewData_all", "OrganoID_test", "OrganoID_test_
 decoder: ""
 backbone_name: "default"
 
+# Debugging
+trace_compute: false
+memory_snapshot: false
+cache_10_samples: false
+
 # Training settings
 seed: 2024
 accumulate_grad_batches: 1

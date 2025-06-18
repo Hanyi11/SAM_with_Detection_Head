@@ -19,7 +19,7 @@ num_classes: 1
 # lr_drop: 200
 batches_per_epoch: 100
 batch_size: 8
-accumulate_grad_batches: 1
+accumulate_grad_batches: 4
 
 # Optimization
 learning_rate: 1e-4
@@ -43,10 +43,10 @@ frozen_weights: null
 enc_layers: 6
 dec_layers: 6
 dim_feedforward: 1024
-hidden_dim: 256
+hidden_dim: 256  # 256
 dropout: 0.0
-nheads: 8
-num_query_position: 300
+nheads: 8  # 8
+num_query_position: 100
 num_query_pattern: 3
 spatial_prior: learned
 attention_type: RCDA
@@ -68,7 +68,7 @@ dice_loss_coef: 1
 cls_loss_coef: 2
 bbox_loss_coef: 5
 giou_loss_coef: 2
-focal_alpha: 0.25
+focal_alpha: 0.9  # To account for ~10 organoids compared to 300 predictions. Originally: 0.25
 
 # Dataset parameters
 # dataset_file: coco

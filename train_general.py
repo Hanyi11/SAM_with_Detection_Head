@@ -9,6 +9,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 import torch
+from torch.profiler import profile, record_function, ProfilerActivity
 import models
 # from detection_head_datamodule import DetectionHeadDataModule
 # from detection_head_model import DetectionHead
@@ -103,10 +104,14 @@ def initialize_model_and_dataset(args: dict):
 
 
 def train(args) -> None:
+    # Record memory usage
+    if args.memory_snapshot:
+        torch.cuda.memory._record_memory_history(
+        max_entries=100000
+        )
+
+
     # Print all parameters before training
-    torch.cuda.memory._record_memory_history(
-       max_entries=100000
-   )
     print("Training Parameters:")
     for arg in vars(args):
         print(f"{arg}: {getattr(args, arg)}")
@@ -207,14 +212,15 @@ def train(args) -> None:
 
     trainer.fit(model, data_module, ckpt_path=ckpt_file_resume)
 
-    snapshot_file = 'memory_run_0'
-    try:
-        torch.cuda.memory._dump_snapshot(f"{snapshot_file}.pickle")
-    except Exception as e:
-        print(f"Failed to capture memory snapshot {e}")
+    if args.memory_snapshot:
+        snapshot_file = 'memory_run_1'
+        try:
+            torch.cuda.memory._dump_snapshot(f"{snapshot_file}.pickle")
+        except Exception as e:
+            print(f"Failed to capture memory snapshot {e}")
 
-    # Stop recording memory snapshot history.
-    torch.cuda.memory._record_memory_history(enabled=None)
+        # Stop recording memory snapshot history.
+        torch.cuda.memory._record_memory_history(enabled=None)
 
 
     # Testing of the last checkpoint model
@@ -251,7 +257,28 @@ def main(cfg: DictConfig):
     wandb.init(project=f"{cfg.project_name}", name=f"{cfg.project_name}_{cfg.decoder}_{cfg.backbone_name}_{train_dirs_str}_{cfg.sub_name}_{cfg.seed}")
 
     # Start training
-    train(cfg)
+    if cfg.trace_compute:
+        activities = [ProfilerActivity.CPU, ProfilerActivity.CUDA, ProfilerActivity.XPU]
+        with profile(
+            activities=activities,
+            with_stack=True,
+        ) as prof:
+            train(cfg)
+        
+        for i in range(100):
+            trace_file = Path(f'trace_{i}.json')
+            if not trace_file.exists():
+                break
+        prof.export_chrome_trace(trace_file)
+
+        # Print aggregated stats
+        print('\n\nCUDA\n\n')
+        print(prof.key_averages(group_by_stack_n=5).table(sort_by="self_cuda_time_total", row_limit=2))
+        print('\n\nCPU\n\n')
+        print(prof.key_averages(group_by_stack_n=5).table(sort_by="self_cpu_time_total", row_limit=2))
+
+    else:
+        train(cfg)
 
     # Finish the wandb run
     wandb.finish()

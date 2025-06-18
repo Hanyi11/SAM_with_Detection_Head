@@ -196,7 +196,9 @@ class RandRotate90(tfs.RandomizableTransform):
         if self._do_transform:
             img_rotate = tfs.Rotate90(k=self.k, spatial_axes=self.axes)
             img = img_rotate(img)
-            # img = tfs.spatial.functional.rotate90(img, axes=self.axes, k=self.k)
+
+            # img = tfs.spatial.functional.rotate90(img, axes=self.axes, k=self.k, lazy=False, transform_info=None)
+            
             boxes = self._rotate90k(boxes, H, W, k=self.k)
         return {'img': img, 'boxes': boxes}
     
@@ -224,13 +226,27 @@ class RandRotate90(tfs.RandomizableTransform):
         ymax = W - boxes[:, 0]
 
         return np.stack((xmin, ymin, xmax, ymax), axis=1)
+    
+    # def _rotate90reverse(self, boxes, H, W):
+    #     """Rotates 90 degrees clockwise.
+        
+    #     'boxes' must be of shape [N, 4] with coords in [x, y, x, y] in px, 
+    #     where x corresponds to axis[1] and y to axis[0].
+    #     """
+    #     xmin = H - boxes[:, 3]
+    #     xmax = H - boxes[:, 1]
+
+    #     ymin = boxes[:, 0]
+    #     ymax = boxes[:, 2]
+
+    #     return np.stack((xmin, ymin, xmax, ymax), axis=1)
 
 
 class RandFlip(tfs.RandomizableTransform):
     def __init__(self, prob = 1, do_transform = True, x_axis=-1):
         super().__init__(prob, do_transform)
         self.x_axis = x_axis
-        self.img_flip = tfs.Flip(spatial_axis=self.x_axis)
+        self.img_flip = tfs.Flip(spatial_axis=self.x_axis, )
 
     def randomize(self):
         super().randomize(None)
@@ -245,7 +261,7 @@ class RandFlip(tfs.RandomizableTransform):
         if self._do_transform:
             if self.flip:
                 img = self.img_flip(img)
-                # img = tfs.spatial.functional.flip(img, sp_axes=self.x_axis)
+                # img = tfs.spatial.functional.flip(img, sp_axes=self.x_axis, lazy=False, transform_info=None) #.as_tensor()
                 boxes = self._flip(boxes, W)
         return {'img': img, 'boxes': boxes}
     
@@ -286,10 +302,13 @@ class Augmentation():
             (
                 tfs.Identity(),
                 tfs.Compose((
-                    tfs.RandGaussianSmooth(prob=0.8),
-                    tfs.RandAdjustContrast(prob=0.1),
+                    tfs.RandGaussianSmooth(prob=0.45, sigma_x=(0.25, 1.5), sigma_y=(0.25, 1.5)),
+                    tfs.RandGaussianSmooth(prob=0.05, sigma_x=(1.5, 5), sigma_y=(1.5, 5)),
+                    tfs.RandAdjustContrast(prob=0.05, gamma=(0.5, 4.5)),
+                    tfs.RandAdjustContrast(prob=0.05, gamma=(0.2, 8)),
                     RandInvertIntensity(prob=0.1),
-                    tfs.RandGaussianNoise(prob=0.1),
+                    tfs.RandGaussianNoise(prob=0.05, std=0.1),
+                    tfs.RandGaussianNoise(prob=0.05, std=0.3),
                 ))
             ),
             weights=(0.5, 0.5)
@@ -599,6 +618,8 @@ class ImageDataset(Dataset):
         targets = box_ops_numpy.cxcywh_to_xyxy(targets) * max(H, W)
         targets = np.stack((targets[:, 1], targets[:, 0], targets[:, 3], targets[:, 2]), axis=1)
 
+        # print('targets after conversion to xyxy', targets)
+
         # Rescale image and boxes to max side length 1024
         max_side_length = 1024
         factor = float(max_side_length) / max(H, W) 
@@ -681,10 +702,12 @@ class ImageDataModule(pl.LightningDataModule):
                  sampling_groups,
                  max_oversampling: float,
                  n_validation_samples: int | None,
+                 cache_10_samples: bool = False,
                  **kwargs):
         super().__init__()
         self.n_workers = int(os.environ.get('SLURM_CPUS_PER_TASK', 0)) - 1
         self.kwargs = kwargs
+        self.cache_10_samples = cache_10_samples
         
         # Data directories 
         self.train_dir_names = train_dirs
@@ -708,19 +731,33 @@ class ImageDataModule(pl.LightningDataModule):
     def setup(self, stage: Literal["fit", "validate", None] = None):
         # Set datasets depending on the stage
         if stage == 'fit' or stage is None:
-            self.train_dataset = CachedDataset(ImageDataset(data_split_dirs=self.train_dir_names, 
-                                              data_split="train", 
-                                              augmentation=True,
-                                              **self.kwargs))
+            if self.cache_10_samples:
+                self.train_dataset = CachedDataset(ImageDataset(data_split_dirs=self.train_dir_names, 
+                                                data_split="train", 
+                                                augmentation=True,
+                                                **self.kwargs))
+            else:
+                self.train_dataset = ImageDataset(data_split_dirs=self.train_dir_names, 
+                                                data_split="train", 
+                                                augmentation=True,
+                                                **self.kwargs)
             print('len(train_dataset)', len(self.train_dataset))
         
         if (stage == 'fit') or (stage == 'validate') or (stage is None):
-            self.val_datasets = [CachedDataset(ImageDataset(
-                data_split_dirs=[val_dir_name],
-                data_split="val", 
-                augmentation=False,
-                **self.kwargs
-            )) for val_dir_name in self.val_dir_names]
+            if self.cache_10_samples:
+                self.val_datasets = [CachedDataset(ImageDataset(
+                    data_split_dirs=[val_dir_name],
+                    data_split="val", 
+                    augmentation=False,
+                    **self.kwargs
+                )) for val_dir_name in self.val_dir_names]
+            else:
+                self.val_datasets = [ImageDataset(
+                    data_split_dirs=[val_dir_name],
+                    data_split="val", 
+                    augmentation=False,
+                    **self.kwargs
+                ) for val_dir_name in self.val_dir_names]
             print('len(val_datasets)', [len(ds) for ds in self.val_datasets])
 
 
@@ -792,12 +829,20 @@ class ImageDataModule(pl.LightningDataModule):
         load the data in a standard sequential manner.
         """
         print('self.test_dir_names', self.test_dir_names)
-        test_datasets = [CachedDataset(ImageDataset(
-            data_split_dirs=[test_dir_name],
-            data_split="test", 
-            augmentation=False,
-            **self.kwargs
-        )) for test_dir_name in self.test_dir_names]
+        if self.cache_10_samples:
+            test_datasets = [CachedDataset(ImageDataset(
+                data_split_dirs=[test_dir_name],
+                data_split="test", 
+                augmentation=False,
+                **self.kwargs
+            )) for test_dir_name in self.test_dir_names]
+        else:
+            test_datasets = [ImageDataset(
+                data_split_dirs=[test_dir_name],
+                data_split="test", 
+                augmentation=False,
+                **self.kwargs
+            ) for test_dir_name in self.test_dir_names]
         print('test_datasets', test_datasets)
 
         return [DataLoader(test_dataset, 

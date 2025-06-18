@@ -189,16 +189,24 @@ class DetectionTransformer(nn.Module):
         output = self.forward_images(images)
 
         boxes = output['pred_boxes']
-        scores = output['pred_logits'].softmax(dim=-1)
+        logits = output['pred_logits']
+        # print(logits.shape)
+        scores = logits.sigmoid()
+        # scores_softmax = logits.softmax(dim=-1)
+        # print('scores', scores.shape)
+        # print('scores', scores)
+        # print('scores_softmax', scores_softmax.shape)
+        # print('scores_softmax', scores_softmax)
         scores = scores[:, :, 0]  # class 0 is organoids, 1 is background
+        # print(scores.shape)
         labels = torch.zeros(scores.shape, dtype=torch.int64, device=scores.device)
 
-        # Transform boxes:  [cy cx h w] in [0, 1] range  -->  [x y x y] in [0, 1024] px
+        # Transform boxes:  [cx cy w h] in [0, 1] range  -->  [x y x y] in [0, 1024] px
         boxes = torch.stack([
-            boxes[:, :, 1] - (boxes[:, :, 3] / 2),
             boxes[:, :, 0] - (boxes[:, :, 2] / 2),
-            boxes[:, :, 1] + (boxes[:, :, 3] / 2),
+            boxes[:, :, 1] - (boxes[:, :, 3] / 2),
             boxes[:, :, 0] + (boxes[:, :, 2] / 2),
+            boxes[:, :, 1] + (boxes[:, :, 3] / 2),
         ], dim=2) * 1024
 
         predictions = []
@@ -234,6 +242,8 @@ class DetectionTransformer(nn.Module):
             ], dim=1) / 1024.0
             t['boxes'] = boxes
             targets_updated.append(t)
+
+        # print('targets_updated', targets_updated[0]['boxes'])
 
         # Forward
         outputs = self.model(images)
@@ -283,12 +293,10 @@ class DetectionTransformer(nn.Module):
 
         return total_loss, loss_dict, {'giou': giou}
     
-
     def forward_train(self, batch):
         self.train()
         return self.forward_batch(batch)
-    
-    
+
     def forward_eval(self, batch):
         self.eval()
         return self.forward_batch(batch)

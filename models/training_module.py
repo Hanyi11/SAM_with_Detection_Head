@@ -75,6 +75,19 @@ class TrainingModule(pl.LightningModule):
         return [optimizer], [scheduler]
 
     def training_step(self, batch, batch_idx):
+        if batch_idx==0:
+        # if True:
+            images = batch[0]
+            targets = batch[1]
+            image = images[0].cpu().numpy().transpose((1, 2, 0))
+            target = targets[0]
+            with torch.no_grad():
+                pred = self.model.forward(images)
+            if 'image_path' in target.keys():
+                self.visualize_prediction(image,  # target['image_path'], 
+                                          pred[0], 
+                                          target['boxes'],
+                                          f'example_pred@0.5/training')
         self.model.train()
         total_loss, loss_dict, metrics_dict = self.model.forward_train(batch)
         self.log('train_loss', total_loss, on_step=False, on_epoch=True)
@@ -82,15 +95,16 @@ class TrainingModule(pl.LightningModule):
         self.log_dict({f'train_{k}': v for k, v in metrics_dict.items()}, on_step=False, on_epoch=True)
 
         
-        if batch_idx==0:
-            images = batch[0]
-            targets = batch[1]
-            with torch.no_grad():
-                pred = self.model.forward(images)
-            target = targets[0]
-            if 'image_path' in target.keys():
-                self.visualize_prediction(target['image_path'], pred[0], target['boxes'],
-                                          f'example_pred@0.5/training')
+        # # if batch_idx==0:
+        # if True:
+        #     images = batch[0]
+        #     targets = batch[1]
+        #     with torch.no_grad():
+        #         pred = self.model.forward(images)
+        #     target = targets[0]
+        #     if 'image_path' in target.keys():
+        #         self.visualize_prediction(target['image_path'], pred[0], target['boxes'],
+        #                                   f'example_pred@0.5/training')
         
         # self.training_step_outputs.append({'loss': total_loss, 'giou': metrics_dict['giou']}) #.detach().cpu()
 
@@ -106,19 +120,21 @@ class TrainingModule(pl.LightningModule):
         self.training_step_outputs.clear()
         torch.cuda.empty_cache()
 
-    def visualize_prediction(self, image_path: Path, pred, gt_boxes, name: str):
-        im = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+    def visualize_prediction(self, im: np.ndarray,  # image_path: Path, 
+                             pred, gt_boxes, name: str):
+        # im = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
         im = (im - im.min()) / (im.max() - im.min())
         H, W = im.shape[:2]
-        im = cv2.resize(im, None, fx=1024/max(H,W), fy=1024/max(H,W), interpolation=cv2.INTER_LINEAR)
+        # im = cv2.resize(im, None, fx=1024/max(H,W), fy=1024/max(H,W), interpolation=cv2.INTER_LINEAR)
 
         boxes_pred = pred['boxes'].cpu().numpy().copy()
         scores_pred = pred['scores'].cpu().numpy().copy()
         gt_boxes = gt_boxes.cpu().numpy().copy()
+        # print('gt_boxes', gt_boxes)
         # print('scores', scores_pred[:10])
         # print('boxes_pred', boxes_pred[:10])
-        boxes_pred = boxes_pred[scores_pred>0.3]
-        scores_pred = scores_pred[scores_pred>0.3]
+        boxes_pred = boxes_pred[scores_pred>0.5]
+        scores_pred = scores_pred[scores_pred>0.5]
 
         # Only keep top max_detections
         sorted_indices = np.argsort(scores_pred)[::-1]
@@ -130,8 +146,9 @@ class TrainingModule(pl.LightningModule):
         # print('boxes_pred', boxes_pred[:10])
         
         fig, ax = plt.subplots(1, 1, figsize=(12*4, 12*4), dpi=50)
-        plot_boxes(im, gt_boxes, format='xyxy_px', ax=ax, show_image=True, color='blue')
-        plot_boxes(im, boxes_pred, format='xyxy_px', ax=ax, show_image=False, color='red')
+        plot_boxes(im, gt_boxes, format='xyxy_px', ax=ax, show_image=True, color='blue', linewidth=15)
+        plot_boxes(im, boxes_pred[:3], format='xyxy_px', ax=ax, show_image=False, color='red', linewidth=15)
+        plot_boxes(im, boxes_pred[3:], format='xyxy_px', ax=ax, show_image=False, color='orange', linewidth=15)
         plt.axis(True)
 
         # Log with wandb
@@ -152,8 +169,10 @@ class TrainingModule(pl.LightningModule):
 
         if batch_idx==0:
             target = targets[0]
+            image = images[0].cpu().numpy().transpose((1, 2, 0))
             if 'image_path' in target.keys():
-                self.visualize_prediction(target['image_path'], pred[0], target['boxes'],
+                self.visualize_prediction(image,  # target['image_path'], 
+                                          pred[0], target['boxes'],
                                           f'example_pred@0.5/{self.val_dirs[dataloader_idx]}')
 
 
