@@ -9,6 +9,7 @@ test_dirs: ["OrgaExtractor_all", "NewData_all", "OrganoID_test", "OrganoID_test_
 # Model configuration
 decoder: ""
 backbone_name: "default"
+freeze_backbone: false
 
 # Debugging
 trace_compute: false

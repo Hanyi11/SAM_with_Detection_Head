@@ -73,6 +73,14 @@ class SAMBackbone(nn.Module):
     def __init__(self, get_intermediate_layers = (2, 5, 8, 11), model_size='base'):
         super().__init__()
         self.image_encoder_sam, self.embed_dim, self.encoder_global_attn_indexes = build_sam_encoder(model_size=model_size)
+        
+        # Normalize colors similar to Sam class in segment_anything (we have 0, 1 as input range here instead of 0, 255).
+        pixel_mean=[123.675 / 255, 116.28 / 255, 103.53 / 255]
+        pixel_std=[58.395 / 255, 57.12 / 255, 57.375 / 255]
+        # pixel_mean=[123.675, 116.28, 103.53]
+        # pixel_std=[58.395, 57.12, 57.375]
+        self.register_buffer("pixel_mean", torch.Tensor(pixel_mean).view(-1, 1, 1), False)
+        self.register_buffer("pixel_std", torch.Tensor(pixel_std).view(-1, 1, 1), False)
 
         self.get_intermediate_layers = get_intermediate_layers
         features = {
@@ -94,9 +102,24 @@ class SAMBackbone(nn.Module):
             self.embed_dim for _ in self.get_intermediate_layers
         ] + [256]  # Output dimension of the neck, same as the prompt_embed_dim
 
+
     def forward(self, x):
         if isinstance(x, NestedTensor):
             x, mask = x.decompose()
+            
+        # print(x.dtype)
+        # print('x.min(), x.max()', x[:,0,:,:].min(), x[:,0,:,:].max())
+        # print('x.min(), x.max()', x[:,1,:,:].min(), x[:,1,:,:].max())
+        # print('x.min(), x.max()', x[:,2,:,:].min(), x[:,2,:,:].max())
+
+        # Normalize colors similar to Sam class in segment_anything (we have 0, 1 as input range here instead of 0, 255).
+        x = (x - self.pixel_mean) / self.pixel_std
+
+        # print(x.dtype)
+        # print(x.shape)
+        # print('x.min(), x.max()', x[:,0,:,:].min(), x[:,0,:,:].max())
+        # print('x.min(), x.max()', x[:,1,:,:].min(), x[:,1,:,:].max())
+        # print('x.min(), x.max()', x[:,2,:,:].min(), x[:,2,:,:].max())
         feats = self.sam(x)
         outputs = []
         for k in self.feature_layers:
@@ -117,11 +140,19 @@ def build(args):
     if args.backbone_name.startswith('SAM'):
         backbone = SAMBackbone(get_intermediate_layers=args.backbone_get_intermediate_layers,
                                model_size=args.backbone_model_size)
+    else:
+        backbone = build_backbone(args)
+
+    if args.freeze_backbone:
         # Freeze the backbone parameters
         for param in backbone.parameters():
             param.requires_grad = False
-    else:
-        backbone = build_backbone(args)
+    # Else, layer 2, 3, and 4 of resnet50 are trained.
+    # else:
+    #     # Unfreeze the backbone parameters
+    #     for name, param in backbone.named_parameters():
+    #         print(name, param.requires_grad)
+    #         # assert param.requires_grad == True, name
 
     transformer = build_transformer(args)
     model = AnchorDETR(

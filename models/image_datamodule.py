@@ -321,6 +321,8 @@ class Augmentation():
     def __call__(self, img: torch.Tensor, boxes: torch.Tensor):
         # boxes are [x, y, x, y] in px
         img = self.image_augmentation(img)
+        # Clip image pixels to 0, 1 range (might only be outside this range due to Gaussian Noise)
+        img = torch.clamp(img, 0.0, 1.0)
         output = self.img_label_augmentation({'img': img, 'boxes': boxes})
         img, boxes = output['img'], output['boxes']
 
@@ -534,7 +536,10 @@ class ImageDataset(Dataset):
                 current_count_file = bbox_gt_dir / dataset / img_file.parent.name / 'box_counts.npy'
                 current_count_data = np.load(current_count_file, allow_pickle=False)
             object_count = current_count_data[patch_number]
+
+            # Split into 0, [1, 10], [11, 20], [21, 30], ..., [91, 100], >100
             object_count_category = int(np.ceil(object_count / 10.0 - 0.05)) * 10  # 0 for 0 objects, 10 for 1-10 objects, 20 for 11-20 objects, ...
+            object_count_category = min(object_count_category, 110)
 
             self.metadata.append([i, dataset, object_count, object_count_category, patch_size])
 

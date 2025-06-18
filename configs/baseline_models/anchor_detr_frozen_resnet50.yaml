@@ -5,7 +5,7 @@ defaults:
 # Model configuration
 decoder: "AnchorDETR"
 backbone_name: ${backbone}
-freeze_backbone: false
+freeze_backbone: true
 
 # Backbone
 backbone: resnet50  # 'resnet50' or "SAM_large_images" or "SAM_base_images"
@@ -105,5 +105,5 @@ seed: 42
 
 # Logging and checkpointing
 project_name: "OrganoidDetection"
-sub_name: "anchor_detr"
+sub_name: "anchor_detr_frozen_resnet50"
 log_dir: "logs/"

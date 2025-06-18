@@ -5,6 +5,7 @@ defaults:
 # Model configuration
 decoder: "AnchorDETR"
 backbone_name: ${backbone}
+freeze_backbone: true
 
 # Backbone
 backbone: SAM_base_images  # 'resnet50' or "SAM_large_images" or "SAM_base_images"
@@ -20,8 +21,8 @@ num_classes: 1
 # weight_decay: 1e-4
 # lr_drop: 200
 batches_per_epoch: 100
-batch_size: 8
-accumulate_grad_batches: 4
+batch_size: 12
+accumulate_grad_batches: 2
 
 # Optimization
 learning_rate: 1e-4
