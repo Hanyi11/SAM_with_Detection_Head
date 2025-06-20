@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 import PIL
 import PIL.Image
@@ -19,6 +20,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SubsetRandomSampler, WeightedRandomSampler
 from torchvision.models.detection.faster_rcnn import FasterRCNN_ResNet50_FPN_V2_Weights, FasterRCNN_ResNet50_FPN_Weights
 from torchvision.models.detection.ssd import SSD300_VGG16_Weights
+import monai
 from monai import transforms as tfs
 
 from util import box_ops_numpy
@@ -297,22 +299,50 @@ class RandInvertIntensity(tfs.RandomizableTransform):
 
 
 class Augmentation():
-    def __init__(self):
-        self.image_augmentation = tfs.OneOf(
-            (
-                tfs.Identity(),
-                tfs.Compose((
-                    tfs.RandGaussianSmooth(prob=0.45, sigma_x=(0.25, 1.5), sigma_y=(0.25, 1.5)),
-                    tfs.RandGaussianSmooth(prob=0.05, sigma_x=(1.5, 5), sigma_y=(1.5, 5)),
-                    tfs.RandAdjustContrast(prob=0.05, gamma=(0.5, 4.5)),
-                    tfs.RandAdjustContrast(prob=0.05, gamma=(0.2, 8)),
-                    RandInvertIntensity(prob=0.1),
-                    tfs.RandGaussianNoise(prob=0.05, std=0.1),
-                    tfs.RandGaussianNoise(prob=0.05, std=0.3),
-                ))
-            ),
-            weights=(0.5, 0.5)
-        )
+    def __init__(self, strong='normal'):
+        print('Initializing Augmentations')
+        if strong=='strong':
+            self.image_augmentation = tfs.OneOf(
+                (
+                    tfs.Identity(),
+                    tfs.Compose((
+                        tfs.OneOf((
+                            tfs.RandGaussianSmooth(prob=0.5, sigma_x=(0.25, 1.5), sigma_y=(0.25, 1.5)),
+                            tfs.RandGaussianSmooth(prob=0.5, sigma_x=(1.5, 5), sigma_y=(1.5, 5)),
+                        ), weights=(0.8, 0.2)),
+                        tfs.OneOf((
+                            tfs.RandAdjustContrast(prob=0.5, gamma=(0.5, 1.0)),
+                            tfs.RandAdjustContrast(prob=0.5, gamma=(1.0, 2.0)),
+                            tfs.RandAdjustContrast(prob=0.5, gamma=(0.2, 1.0)),
+                            tfs.RandAdjustContrast(prob=0.5, gamma=(1.0, 8.0)),
+                        ), weights=(0.4, 0.4, 0.1, 0.1)),
+                        RandInvertIntensity(prob=0.5),
+                        tfs.OneOf((
+                            tfs.RandGaussianNoise(prob=0.5, std=0.1),
+                            tfs.RandGaussianNoise(prob=0.5, std=0.3),
+                        ), weights=(0.8, 0.2)),
+                    ))
+                ),
+                weights=(0.5, 0.5)
+            )
+        elif strong=='normal':
+            self.image_augmentation = tfs.OneOf(
+                (
+                    tfs.Identity(),
+                    tfs.Compose((
+                        tfs.RandGaussianSmooth(prob=0.45, sigma_x=(0.25, 1.5), sigma_y=(0.25, 1.5)),
+                        tfs.RandGaussianSmooth(prob=0.05, sigma_x=(1.5, 5), sigma_y=(1.5, 5)),
+                        tfs.RandAdjustContrast(prob=0.05, gamma=(0.5, 4.5)),
+                        tfs.RandAdjustContrast(prob=0.05, gamma=(0.2, 8)),
+                        RandInvertIntensity(prob=0.1),
+                        tfs.RandGaussianNoise(prob=0.05, std=0.1),
+                        tfs.RandGaussianNoise(prob=0.05, std=0.3),
+                    ))
+                ),
+                weights=(0.5, 0.5)
+            )
+        else:
+            raise ValueError(strong)
         self.img_label_augmentation = tfs.Compose((
             RandRotate90(),
             RandFlip(),
@@ -328,6 +358,9 @@ class Augmentation():
 
         return img, boxes
 
+    def set_random_state(self, seed):
+        self.image_augmentation.set_random_state(seed)
+        self.img_label_augmentation.set_random_state(seed)
 
 class Normalize():
     def __call__(self, image: PIL.Image):
@@ -391,6 +424,15 @@ def prepare_coco_targets(image: PIL.Image, target):
         return image, target
 
 
+def worker_init_fn(worker_id):
+    torch_seed = torch.initial_seed()
+    if torch_seed >= 2**30:  # make sure torch_seed + workder_id < 2**32
+        torch_seed = torch_seed % 2**30
+    winfo = torch.utils.data.get_worker_info()
+    dataset = winfo.dataset
+    # Seed self.R in all augmentations differently for each worker and for each epoch
+    if dataset.augmentation is not None:
+        dataset.augmentation.set_random_state(torch_seed + worker_id)
 
 
 class CachedDataset(Dataset):
@@ -427,6 +469,7 @@ class ImageDataset(Dataset):
                  decoder = None,
                  base_dir: str = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale_miccai",
                  augmentation: bool = True,
+                 strong_augmentation: bool = False,
                  min_overlap: float = 0.99, # 0.9,
                  min_box_side: float = 0.0,
                  **kwargs):
@@ -467,7 +510,7 @@ class ImageDataset(Dataset):
 
         # Set if data augmentations are activated
         if augmentation:
-            self.augmentation = Augmentation()
+            self.augmentation = Augmentation(strong=strong_augmentation)
         else:
             self.augmentation = None
 
@@ -791,12 +834,14 @@ class ImageDataModule(pl.LightningDataModule):
                               batch_size=self.batch_size,
                               sampler=sampler, 
                               num_workers=self.n_workers,
+                              worker_init_fn=worker_init_fn,
                               collate_fn=collate_fn)
         else:
             return DataLoader(self.train_dataset, 
                               batch_size=self.batch_size, 
                               shuffle=True, 
                               num_workers=self.n_workers,
+                              worker_init_fn=worker_init_fn,
                               collate_fn=collate_fn)
 
     
@@ -818,12 +863,14 @@ class ImageDataModule(pl.LightningDataModule):
                                               batch_size=self.batch_size, 
                                               sampler=sampler, 
                                               num_workers=self.n_workers,
+                                              worker_init_fn=worker_init_fn,
                                               collate_fn=collate_fn))
             return dataloaders
         else: 
             return [DataLoader(val_dataset, 
                                batch_size=self.batch_size, 
                                num_workers=self.n_workers,
+                               worker_init_fn=worker_init_fn,
                                collate_fn=collate_fn) for val_dataset in self.val_datasets]
 
 
@@ -853,5 +900,6 @@ class ImageDataModule(pl.LightningDataModule):
         return [DataLoader(test_dataset, 
                            batch_size=1, 
                            num_workers=self.n_workers,
+                           worker_init_fn=worker_init_fn,
                            collate_fn=collate_fn) for test_dataset in test_datasets]
 

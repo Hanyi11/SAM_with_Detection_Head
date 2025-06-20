@@ -28,6 +28,7 @@ max_oversampling: 10.0
 n_validation_samples: 40
 
 gradient_clip_val: 0.1
+strong_augmentation: normal
 
 # Pretrained checkpoint:
 checkpoint_path: null

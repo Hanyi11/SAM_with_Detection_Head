@@ -254,7 +254,11 @@ def main(cfg: DictConfig):
 
     # Initialize wandb
     train_dirs_str = "_".join(cfg.train_dirs)
-    wandb.init(project=f"{cfg.project_name}", name=f"{cfg.project_name}_{cfg.decoder}_{cfg.backbone_name}_{train_dirs_str}_{cfg.sub_name}_{cfg.seed}")
+    wandb.init(
+        dir='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/logs/wandb',
+        project=f"{cfg.project_name}", 
+        name=f"{cfg.project_name}_{cfg.decoder}_{cfg.backbone_name}_{train_dirs_str}_{cfg.sub_name}_{cfg.seed}"
+    )
 
     # Start training
     if cfg.trace_compute:
