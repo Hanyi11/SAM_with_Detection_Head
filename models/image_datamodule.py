@@ -330,6 +330,22 @@ class Augmentation():
                 (
                     tfs.Identity(),
                     tfs.Compose((
+                        tfs.RandGaussianSmooth(prob=0.5, sigma_x=(0.25, 1.5), sigma_y=(0.25, 1.5)),
+                        tfs.OneOf((
+                            tfs.RandAdjustContrast(prob=0.5, gamma=(0.5, 1.0)),
+                            tfs.RandAdjustContrast(prob=0.5, gamma=(1.0, 2.0)),
+                        ), weights=(0.5, 0.5)),
+                        RandInvertIntensity(prob=0.5),
+                        tfs.RandGaussianNoise(prob=0.5, std=0.1),
+                    ))
+                ),
+                weights=(0.5, 0.5)
+            )
+        elif strong=='original':
+            self.image_augmentation = tfs.OneOf(
+                (
+                    tfs.Identity(),
+                    tfs.Compose((
                         tfs.RandGaussianSmooth(prob=0.45, sigma_x=(0.25, 1.5), sigma_y=(0.25, 1.5)),
                         tfs.RandGaussianSmooth(prob=0.05, sigma_x=(1.5, 5), sigma_y=(1.5, 5)),
                         tfs.RandAdjustContrast(prob=0.05, gamma=(0.5, 4.5)),
@@ -361,6 +377,7 @@ class Augmentation():
     def set_random_state(self, seed):
         self.image_augmentation.set_random_state(seed)
         self.img_label_augmentation.set_random_state(seed)
+
 
 class Normalize():
     def __call__(self, image: PIL.Image):

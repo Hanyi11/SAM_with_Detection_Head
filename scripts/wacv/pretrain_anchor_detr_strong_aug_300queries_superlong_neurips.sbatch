@@ -34,4 +34,4 @@ nvidia-smi
 conda deactivate
 source ../venvs/anchor_detr/bin/activate
 
-python train_general.py +baseline_models=anchor_detr_strong_aug sub_name='"${hydra:runtime.choices.baseline_models}_pretraining_NeurIPS_superlong_focal_alpha_09"' sampling_groups=["n_objects"] seed=2024 train_dirs=["NeurIPSCellSeg_train"] val_dirs=["NeurIPSCellSeg_val"] lr_drop=100000 max_epochs=2500
+python train_general.py +baseline_models=anchor_detr_strong_aug_300queries sub_name='"${hydra:runtime.choices.baseline_models}_pretraining_NeurIPS_superlong_focal_alpha_09"' sampling_groups=["n_objects"] seed=2024 train_dirs=["NeurIPSCellSeg_train"] val_dirs=["NeurIPSCellSeg_val"] lr_drop=100000 max_epochs=10000
