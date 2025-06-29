@@ -21,7 +21,7 @@ from typing import Literal, List
 import warnings
 warnings.filterwarnings("ignore", "You are using `torch.load` with `weights_only=False`*.")
 
-from util import box_ops_numpy
+from ..util import box_ops_numpy
 
 path_detr = '/home/icb/lion.gleiter/projects/organoid_sam/detr'
 if path_detr not in sys.path:

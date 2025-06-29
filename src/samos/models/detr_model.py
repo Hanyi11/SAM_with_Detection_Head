@@ -1,11 +1,11 @@
 import torch
 import pytorch_lightning as pl
 from torch import nn, Tensor
-from transformer_layers import TransformerDecoder, MLP, PositionEmbeddingSine
-from matcher import HungarianMatcher
-from losses import SetCriterion
+from ..transformer_layers import TransformerDecoder, MLP, PositionEmbeddingSine
+from ..matcher import HungarianMatcher
+from ..losses import SetCriterion
 
-
+import sys
 path_detr = '/home/icb/lion.gleiter/projects/organoid_sam/detr'
 if path_detr not in sys.path:
     sys.path.append(path_detr)

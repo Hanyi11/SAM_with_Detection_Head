@@ -10,7 +10,7 @@ from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 import torch
 from torch.profiler import profile, record_function, ProfilerActivity
-import models
+from samos import models
 # from detection_head_datamodule import DetectionHeadDataModule
 # from detection_head_model import DetectionHead
 import wandb
@@ -29,17 +29,20 @@ if import_dir not in sys.path:
     sys.path.append(import_dir)
 
 
-import models.detr_own_impl_frcnn_bb_model
-import models.detr_own_impl_model
-import models.embeddings_datamodule
-import models.training_module
-import models.faster_rcnn_model
-import models.image_datamodule
-import models.ssd_model
-import models.samos_anchor_detr
+from samos.models import detr_own_impl_frcnn_bb_model
+from samos.models import detr_own_impl_model
+from samos.models import embeddings_datamodule
+from samos.models import training_module
+from samos.models import faster_rcnn_model
+from samos.models import image_datamodule
+from samos.models import ssd_model
+from samos.models import samos_anchor_detr
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
+
+# For loading previously saved checkpoints:
+sys.modules['models'] = models
 
 
 def initialize_model_and_dataset(args: dict):

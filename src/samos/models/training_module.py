@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from torchmetrics.detection import GeneralizedIntersectionOverUnion, MeanAveragePrecision
 import wandb
 
-from util.box_ops_numpy import plot_boxes
+from ..util.box_ops_numpy import plot_boxes
 
 
 # def show_box(box, ax, color='red'):

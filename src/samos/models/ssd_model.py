@@ -4,9 +4,9 @@ from torch import nn, Tensor
 from torchvision.models.detection import ssd300_vgg16
 from torchvision.models.detection.ssd import SSD300_VGG16_Weights
 from torchvision.models.vgg import VGG16_Weights
-from transformer_layers import TransformerDecoder, MLP, PositionEmbeddingSine
-from matcher import HungarianMatcher
-from losses import SetCriterion
+# from ..transformer_layers import TransformerDecoder, MLP, PositionEmbeddingSine
+# from ..matcher import HungarianMatcher
+# from ..losses import SetCriterion
 
 class SSD(nn.Module):
     def __init__(self,

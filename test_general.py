@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 import torch
-import models
+from samos import models
 import wandb
 import os
 from omegaconf import OmegaConf
@@ -14,10 +14,10 @@ import hydra
 from omegaconf import DictConfig
 from omegaconf import open_dict
 
-import models.training_module
-import models.faster_rcnn_model
-import models.image_datamodule
-import models.ssd_model
+from samos.models import training_module
+from samos.models import faster_rcnn_model
+from samos.models import image_datamodule
+from samos.models import ssd_model
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 

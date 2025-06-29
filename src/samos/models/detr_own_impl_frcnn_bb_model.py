@@ -1,9 +1,9 @@
 import torch
 import pytorch_lightning as pl
 from torch import nn, Tensor
-from transformer_layers import TransformerDecoder, MLP, PositionEmbeddingSine
-from matcher import HungarianMatcher
-from losses import SetCriterion
+from ..transformer_layers import TransformerDecoder, MLP, PositionEmbeddingSine
+from ..matcher import HungarianMatcher
+from ..losses import SetCriterion
 
 import torchvision
 

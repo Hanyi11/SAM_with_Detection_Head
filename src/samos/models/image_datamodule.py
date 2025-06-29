@@ -23,7 +23,7 @@ from torchvision.models.detection.ssd import SSD300_VGG16_Weights
 import monai
 from monai import transforms as tfs
 
-from util import box_ops_numpy
+from ..util import box_ops_numpy
 
 path_detr = '/home/icb/lion.gleiter/projects/organoid_sam/detr'
 if path_detr not in sys.path:
