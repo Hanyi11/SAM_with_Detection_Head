@@ -278,6 +278,8 @@ class DetectionTransformer(nn.Module):
 
         # Forward
         outputs = self.model(images)
+        # boxes = outputs['pred_boxes']
+        # print('boxes after forward', boxes[:1, :4, :], boxes.min(), boxes.max())
 
         # Loss
         # print('outputs', outputs)

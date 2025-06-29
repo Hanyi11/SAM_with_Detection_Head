@@ -383,7 +383,7 @@ class Normalize():
     def __call__(self, image: PIL.Image):
         arr = torchvision.transforms.functional.pil_to_tensor(image)
 
-        arr = arr / arr.max()
+        arr = arr / max(arr.max(), 1e-2)
 
         return arr
 
