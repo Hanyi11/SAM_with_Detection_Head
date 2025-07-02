@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 import random
+import time
 # import lightning as pl
 # from lightning import loggers as pl_loggers
 # from lightning.callbacks import LearningRateMonitor, ModelCheckpoint
@@ -246,6 +247,10 @@ def main(cfg: DictConfig):
     # # Parse command-line arguments
     # parser = argparse.ArgumentParser('Detection model training script', parents=[get_args_parser()])
     # args = parser.parse_args()
+
+    with open_dict(cfg):
+        if cfg.seed is None:
+            cfg.seed = int(time.time()) % 2**30
 
     # default_config = OmegaConf.load("configs/default.yaml")
     # model_config = OmegaConf.load(cfg.model_config)
