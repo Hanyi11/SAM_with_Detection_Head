@@ -123,7 +123,7 @@ def train(args) -> None:
     # For logging
     train_dirs_str = "_".join(args.train_dirs)
     val_dirs_str = "_".join(args.val_dirs)
-    logging_name = f"{args.decoder}_{args.backbone_name}_{train_dirs_str.replace('/', '_')}_{args.sub_name}_{args.use_sampler}_{args.batch_size}_{args.batches_per_epoch}_{args.seed}"
+    logging_name = f"{args.decoder}_{args.backbone_name}_{train_dirs_str.replace('/', '_')}_{args.sub_name}_{args.use_sampler}_{args.batch_size}_{args.batches_per_epoch}_{args.run}"
     with open_dict(args):
         args.logging_name = logging_name
 
@@ -265,7 +265,7 @@ def main(cfg: DictConfig):
     wandb.init(
         dir='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/logs/wandb',
         project=f"{cfg.project_name}", 
-        name=f"{cfg.project_name}_{cfg.decoder}_{cfg.backbone_name}_{train_dirs_str}_{cfg.sub_name}_{cfg.seed}"
+        name=f"{cfg.project_name}_{cfg.decoder}_{cfg.backbone_name}_{train_dirs_str}_{cfg.sub_name}_{cfg.run}"
     )
 
     # Start training

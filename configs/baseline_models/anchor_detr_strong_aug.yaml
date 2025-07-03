@@ -79,7 +79,7 @@ focal_alpha: 0.9  # To account for ~10 organoids compared to 300 predictions. Or
 # remove_difficult: false
 # output_dir: /data/detr-workdir/r50-dc5
 device: cuda
-seed: 42
+# seed: 42
 # resume: ''
 # auto_resume: false
 # start_epoch: 0

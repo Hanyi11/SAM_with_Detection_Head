@@ -17,7 +17,8 @@ memory_snapshot: false
 cache_10_samples: false
 
 # Training settings
-seed: 2024
+run: 2024
+seed: null
 accumulate_grad_batches: 1
 batch_size: 8
 batches_per_epoch: 100
