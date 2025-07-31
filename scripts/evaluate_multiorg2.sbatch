@@ -4,9 +4,12 @@
 #SBATCH -o /ictstr01/groups/shared/users/lion.gleiter/organoid_sam/logs/slurm/%x/%j_output.log
 #SBATCH -e /ictstr01/groups/shared/users/lion.gleiter/organoid_sam/logs/slurm/%x/%j_error.log
 
-#SBATCH --qos gpu_normal  
-# #SBATCH --qos gpu_long
-#SBATCH --partition gpu_p
+# #SBATCH --qos gpu_normal  
+# # #SBATCH --qos gpu_long
+# #SBATCH --partition gpu_p
+
+#SBATCH --qos cpu_normal
+#SBATCH --partition cpu_p
 
 #SBATCH --cpus-per-task 4
 #SBATCH --mem=100G

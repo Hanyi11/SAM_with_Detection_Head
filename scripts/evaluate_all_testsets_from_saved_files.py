@@ -27,10 +27,10 @@ warnings.filterwarnings("ignore", "You are using `torch.load` with `weights_only
 import sys
 sys.path.append('/home/icb/lion.gleiter/projects/organoid_sam/SAM_with_Detection_Head')
 
-from util.box_ops_numpy import mask_to_boxes, cxcywh_to_xyxy, xyxy_to_cxcywh, plot_boxes
-from util import dataloading as dl
-from util import postprocessing as pp
-from util.pred_with_sam import PredictionSAM
+from samos.util.box_ops_numpy import mask_to_boxes, cxcywh_to_xyxy, xyxy_to_cxcywh, plot_boxes
+from samos.util import dataloading as dl
+from samos.util import postprocessing as pp
+from samos.util.pred_with_sam import PredictionSAM
 
 base_datadir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/original_data/')
 results_dir = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/results')
@@ -186,24 +186,26 @@ if __name__=='__main__':
         # ('final_long_600_epochs_2025', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_True_16_400_2025'),
         # ('final_long_600_epochs_2026', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_True_16_400_2026'),
 
-        ('final_long_bbox_loss_2024', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2024'),
-        ('final_long_bbox_loss_2025', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2025'),
-        ('final_long_bbox_loss_2026', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2026'),
+        # ('final_long_bbox_loss_2024', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2024'),
+        # ('final_long_bbox_loss_2025', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2025'),
+        # ('final_long_bbox_loss_2026', 'sam1', 'DETR_own_implementation_SAM_large_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_detr_own_sam1_small_head_finetuning_long_extended_bb_loss_version_2_True_16_400_2026'),
         
+        # ('anchor_detr_2024', 'sam1', 'AnchorDETR_resnet50_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_anchor_detr_strong_aug_finetuning_long_True_12_100_2024'),
+        ('anchor_detr_sam_base_2024', 'sam1', 'AnchorDETR_SAM_base_images_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_anchor_detr_sam_base_strong_aug_finetuning_long_True_12_100_2024'),
     ]:
         model_name = f"impr_thres_{model_name}_{sam_version}"
         model = PredictionSAM(logging_name=logging_name, sam_version=sam_version)
         for ds_idx, ds in enumerate([
-            # dl.OrganoID(split='test'),
-            # dl.OrganoID(split='test_C'),
-            # dl.OrganoID(split='test_Lung'),
-            # dl.OrganoID(split='test_ACC'),
-            # dl.OrganoID(split='test_only_mouse'),
-            # dl.OrgaExtractor(split='all'),
-            # dl.NewData(split='all'),
-            # dl.OrgaSegment(split='test'),
-            # dl.OrgaQuant(split='test'),
-            # dl.Tellu(split='test'),
+            dl.OrganoID(split='test'),
+            dl.OrganoID(split='test_C'),
+            dl.OrganoID(split='test_Lung'),
+            dl.OrganoID(split='test_ACC'),
+            dl.OrganoID(split='test_only_mouse'),
+            dl.OrgaExtractor(split='all'),
+            dl.NewData(split='all'),
+            dl.OrgaSegment(split='test'),
+            dl.OrgaQuant(split='test'),
+            dl.Tellu(split='test'),
             dl.MultiOrg(split='test_macros'),
             dl.MultiOrg(split='test_normal'),
         ]):

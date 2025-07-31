@@ -192,6 +192,14 @@ def train(args) -> None:
         save_on_train_epoch_end=True  # Ensures correct handling of ckpt_frequency
     )
     
+    checkpoint_callback_regular = ModelCheckpoint(
+        every_n_epochs=ckpt_frequency,
+        dirpath=ckpt_path / logging_name,
+        filename=f"{logging_name}-reg_{{epoch}}",
+        verbose=True,
+        save_on_train_epoch_end=True  # Ensures correct handling of ckpt_frequency
+    )
+    
     checkpoint_callback_best = ModelCheckpoint(
         save_top_k=1,
         monitor='val_loss',
@@ -207,7 +215,7 @@ def train(args) -> None:
 
     trainer = pl.Trainer(
         logger=[wandb_logger],
-        callbacks=[checkpoint_callback_last, checkpoint_callback_best, lr_monitor],
+        callbacks=[checkpoint_callback_last, checkpoint_callback_regular, checkpoint_callback_best, lr_monitor],
         max_epochs=args.max_epochs,
         gradient_clip_val=args.gradient_clip_val,
         check_val_every_n_epoch=ckpt_frequency,

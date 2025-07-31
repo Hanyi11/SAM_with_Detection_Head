@@ -1,5 +1,6 @@
 from typing import Literal
 import pytorch_lightning as pl
+from contextlib import contextmanager
 
 
 # torchvision libraries
@@ -98,7 +99,8 @@ class FasterRCNN_model(nn.Module):
     def forward(self, images, sizes=None, filter_class=None):
 
         # Do a forward pass in FasterRCNN
-        detections = self.model(images)
+        with self.set_training(False):  # Necessary to forward images without targets.
+            detections = self.model(images)
         if filter_class is not None:
             out = []
             for detection in detections:
@@ -160,6 +162,30 @@ class FasterRCNN_model(nn.Module):
 
     #     self.training_step_outputs.clear()
 
+    @contextmanager
+    def set_training(self, training: bool):
+        """
+        Context manager to set the model to training or evaluation mode 
+        and subsequently reset to previous state.
+        """
+        # remember the current training state
+        model_training = self.model.training
+        model_rpn_training = self.model.rpn.training
+        model_roi_heads_training = self.model.roi_heads.training
+
+        # set the model to the desired training state
+        self.model.training = training
+        self.model.rpn.training = training
+        self.model.roi_heads.training = training
+
+        try:
+            yield
+        finally:
+            # reset the model to the previous training state
+            self.model.training = model_training
+            self.model.rpn.training = model_rpn_training
+            self.model.roi_heads.training = model_roi_heads_training
+
     def forward_eval(self, batch):
         # print("Validation Try begin")
         # print('batch_idx', batch_idx)
@@ -168,21 +194,28 @@ class FasterRCNN_model(nn.Module):
         # print(f"validation step targets: {targets}")
         # print('len(images), len(targets)', len(images), len(targets))
         
-        training = self.model.training
         # print('training', training)  # False, needs to be True to compute the loss values
         
         with torch.inference_mode():
-            self.model.training = True # False, needs to be True to compute the loss values
-            self.model.rpn.training = True # False, needs to be True to compute the loss values
-            self.model.roi_heads.training = True # False, needs to be True to compute the loss values
-            # print(f"val: model.rpn.training =  {self.model.rpn.training}")
-            # print(f"val: model.roi_heads.training =  {self.model.roi_heads.training}")
+            with self.set_training(True):
+                # model_training = self.model.training
+                # model_rpn_training = self.model.rpn.training
+                # model_roi_heads_training = self.model.roi_heads.training
+                # self.model.training = True # False, needs to be True to compute the loss values
+                # self.model.rpn.training = True # False, needs to be True to compute the loss values
+                # self.model.roi_heads.training = True # False, needs to be True to compute the loss values
+                # # print(f"val: model.rpn.training =  {self.model.rpn.training}")
+                # # print(f"val: model.roi_heads.training =  {self.model.roi_heads.training}")
 
-            loss_dict: dict = self.model(images, targets)
-            if not loss_dict:
-                raise ValueError("The loss_dict is empty. Please check the input or the loss computation.")
+                loss_dict: dict = self.model(images, targets)
+                if not loss_dict:
+                    raise ValueError("The loss_dict is empty. Please check the input or the loss computation.")
+                
+                # self.model.training = model_training
+                # self.model.rpn.training = model_rpn_training
+                # self.model.roi_heads.training = model_roi_heads_training
 
-            # print('loss_dict', loss_dict)
+                # print('loss_dict', loss_dict)
 
         total_loss = sum(loss_dict[k] for k in loss_dict.keys())
         loss_dict.update({'loss': total_loss})
