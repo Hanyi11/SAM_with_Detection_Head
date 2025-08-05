@@ -127,6 +127,12 @@ def train(args) -> None:
     with open_dict(args):
         args.logging_name = logging_name
 
+    # Force evaluation of variables in the checkpoint path before initializing 
+    # the model, since the model initialization might change the backbone name.
+    if args.checkpoint_path is not None:
+        with open_dict(args):
+            args.checkpoint_path = str(args.checkpoint_path)
+
 
     # Determinism
     random.seed(0)

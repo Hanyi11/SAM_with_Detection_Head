@@ -741,8 +741,10 @@ class ImageDataset(Dataset):
         image_id = torch.tensor([idx])
         area = (targets[:, 3] - targets[:, 1]) * (targets[:, 2] - targets[:, 0])
         is_crowd = torch.zeros((targets.shape[0],), dtype=torch.bool)
-        orig_size = torch.as_tensor([int(H), int(W)])
-        size = torch.as_tensor([int(H), int(W)])
+        # orig_size = torch.as_tensor([int(H), int(W)])
+        # size = torch.as_tensor([int(H), int(W)])
+        orig_size = torch.as_tensor([int(out_H), int(out_W)])
+        size = torch.as_tensor([int(out_H), int(out_W)])
 
         targets_out = {'boxes': targets, 
                        'labels': labels, 

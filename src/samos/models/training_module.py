@@ -82,7 +82,9 @@ class TrainingModule(pl.LightningModule):
             image = images[0].cpu().numpy().transpose((1, 2, 0))
             target = targets[0]
             with torch.no_grad():
+                self.model.eval()
                 pred = self.model.forward(images)
+                self.model.train()
             if 'image_path' in target.keys():
                 self.visualize_prediction(image,  # target['image_path'], 
                                           pred[0], 
@@ -125,6 +127,7 @@ class TrainingModule(pl.LightningModule):
         # im = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
         im = (im - im.min()) / (im.max() - im.min())
         H, W = im.shape[:2]
+        # print('H, W', H, W)
         # im = cv2.resize(im, None, fx=1024/max(H,W), fy=1024/max(H,W), interpolation=cv2.INTER_LINEAR)
 
         boxes_pred = pred['boxes'].cpu().numpy().copy()

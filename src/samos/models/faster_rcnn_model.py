@@ -174,6 +174,10 @@ class FasterRCNN_model(nn.Module):
         model_roi_heads_training = self.model.roi_heads.training
 
         # set the model to the desired training state
+        if training:
+            self.model.train()
+        else:
+            self.model.eval()
         self.model.training = training
         self.model.rpn.training = training
         self.model.roi_heads.training = training
@@ -182,6 +186,10 @@ class FasterRCNN_model(nn.Module):
             yield
         finally:
             # reset the model to the previous training state
+            if model_training:
+                self.model.train()
+            else:
+                self.model.eval()
             self.model.training = model_training
             self.model.rpn.training = model_rpn_training
             self.model.roi_heads.training = model_roi_heads_training

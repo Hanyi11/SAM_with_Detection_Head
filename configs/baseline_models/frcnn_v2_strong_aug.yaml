@@ -11,7 +11,7 @@ freeze_backbone: false
 # backbone: "default"  # 'resnet50' or "SAM_large_images" or "SAM_base_images"
 dilation: true
 # num_feature_levels: 1
-# finetune_only_class_linear: false
+finetune_only_class_linear: false
 num_classes: 2
 
 # # Learning rate and optimizer parameters
