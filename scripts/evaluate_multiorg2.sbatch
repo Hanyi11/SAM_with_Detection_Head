@@ -18,6 +18,7 @@
 # #SBATCH --constraint="a100_40gb|a100_80gb|h100_80gb"
 
 #SBATCH -t 01-00:00:00
+# #SBATCH --begin=now+18hours
 # #SBATCH -t 03-00:00:00
 #SBATCH --nice=0
 

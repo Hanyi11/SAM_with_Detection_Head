@@ -23,7 +23,7 @@ from . import postprocessing as pp
 sam1_path = '/home/icb/lion.gleiter/projects/organoid_sam/segment-anything/segment-anything'
 if sam1_path not in sys.path:
     sys.path.append(sam1_path)
-from segment_anything import build_sam_vit_l, predictor
+from segment_anything import build_sam_vit_l, build_sam_vit_b, predictor
 
 # Import SAM2
 sam2_path = '/home/icb/lion.gleiter/projects/organoid_sam/sam2'
@@ -35,7 +35,8 @@ from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 # Load SAM and detection head
 class PredictionSAM():
-    def __init__(self, logging_name,
+    def __init__(self, 
+                 logging_name,
                  sam_version: Literal['sam1', 'sam2'] = 'sam1',
                  max_detections = 400):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -43,7 +44,8 @@ class PredictionSAM():
         self.sam_version = sam_version
         self.max_detections = max_detections
         if sam_version=='sam1':
-            sam_model = build_sam_vit_l(checkpoint='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints/sam_vit_l_0b3195.pth')
+            sam_model = build_sam_vit_b(checkpoint='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints/sam_vit_b_01ec64.pth')
+            # sam_model = build_sam_vit_l(checkpoint='/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints/sam_vit_l_0b3195.pth')
             self.sam_predictor = predictor.SamPredictor(sam_model=sam_model.to(device=self.device))
         elif sam_version=='sam2':
             sam2_checkpoint = "/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/checkpoints/sam2.1_hiera_large.pt"
@@ -177,7 +179,7 @@ class PredictionSAM():
             for k, v in image_embedding.items():
                 setattr(self.sam_predictor, k, v)
         except Exception as e:
-            print(f'\n\nException {e} occurred for embedding file {embed_file}. New embedding will be saved.\n\n')
+            # print(f'\n\nException {e} occurred for embedding file {embed_file}. New embedding will be saved.\n\n')
             # Compute and save image embedding
             with torch.inference_mode():
                 self.sam_predictor.set_image(patch)
@@ -196,6 +198,7 @@ class PredictionSAM():
                         '_is_image_set': True,                      # Flag indicating the image has been set
                         'mask_threshold': self.sam_predictor.mask_threshold
                     }
+            embed_file.parent.mkdir(exist_ok=True, parents=True)
             torch.save(image_embedding, embed_file)
 
         with torch.inference_mode():
@@ -247,7 +250,7 @@ class PredictionSAM():
         return contours
 
 
-    def forward(self, ds_name, image_ID, patch_size=1024, predict_masks=True, min_diameter=5):
+    def forward(self, ds_name, image_ID, predict_masks=True, min_diameter=5):
         self.reset_image()
 
         if self.sam_version=='sam1':
