@@ -38,4 +38,4 @@ source /lustre/groups/peng/datasets/lion/data/venvs/cellsam_evaluation/bin/activ
 # python scripts/evaluate_all_testsets_umamba.py
 # python scripts/evaluate_all_testsets_orgasegment.py
 # python scripts/evaluate_sam_segmentation_with_gt.py
-python scripts/evaluate_all_testsets_from_saved_files.py
+python scripts/evaluate_all_testsets_from_saved_files_segmentation.py

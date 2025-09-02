@@ -254,7 +254,8 @@ if __name__=='__main__':
                                         'labels': torch.zeros((gt_boxes.shape[0],), dtype=torch.int)}])
                 # print('mAP_metric.compute()', mAP_metric.compute())
                 iou_matrix = pp.compute_iou_matrix_detection(boxes, gt_boxes)
-                mAP_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_detection_all(
+                mAP_scores, best_f1_scores, prec_at_best_f1_scores, recall_at_best_f1_scores, \
+                    pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores = pp.compute_metrics_detection_all(
                     iou_matrix, iou_thres, scores, thresholds
                 )
                 detection_mAP.append(mAP_scores)

@@ -59,7 +59,7 @@ class PredictionSAM():
         self.pred_boxes = []
         self.pred_scores = []
         self.pred_contours = []
-        self.default_thres = 0.5
+        self.default_thres = 0.0
 
         self.base_patches = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/patched_data_multiscale_miccai')
         self.base_preds = Path('/ictstr01/groups/shared/users/lion.gleiter/organoid_sam/testset_predictions/trained') / self.logging_name
@@ -160,9 +160,6 @@ class PredictionSAM():
         # xyxy to yxyx and coordinates of the full image
         boxes_patch = boxes.copy()
 
-
-
-
         boxes_full_image = np.stack([boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]], axis=1)
         boxes_full_image += np.array([[off_y, off_x, off_y, off_x]])
         return contours, boxes_full_image, scores, boxes_patch
@@ -237,16 +234,22 @@ class PredictionSAM():
                 
                 transform = rasterio.Affine(1, 0, off_x, 0, 1, off_y)
                 outlines = []
+                outline = None
                 for p, v in rio_shapes(mask,
-                                    mask=mask,
-                                    connectivity=8,
-                                    transform=transform):
+                                       mask=mask,
+                                       connectivity=8,
+                                       transform=transform):
                     if v==1:
-                        outlines.append(shapely.from_geojson(json.dumps(p)))
+                        if outline is None:
+                            outline = shapely.from_geojson(json.dumps(p))
+                        else:
+                            outline_new = shapely.from_geojson(json.dumps(p))
+                            if outline_new.area > outline.area:
+                                # New largest connected component
+                                outline = outline_new
                     else:
                         raise RuntimeError(f'value: {v}, polygon: {p}')
-                polygon = shapely.union_all(outlines)
-                contours.append(polygon)
+                contours.append(outline)
         return contours
 
 
@@ -330,7 +333,7 @@ class PredictionSAM():
         if predict_masks:
             self.pred_contours.clear()
 
-            # Needed to reorder boxes and scores, since contours are predicted in different order:
+            # Need to reorder boxes and scores, since contours are predicted in different order:
             boxes = []  
             scores = []
             for i, patched_image in enumerate(patched_images):
@@ -363,7 +366,7 @@ class PredictionSAM():
 
         return contours, boxes, scores
 
-    def set_threshold(self, conf_thres, predict_masks=True):
+    def set_threshold(self, conf_thres):
         keep_indices = self.pred_scores >= conf_thres
         pred_boxes = self.pred_boxes[keep_indices]
         pred_scores = self.pred_scores[keep_indices]

@@ -704,14 +704,26 @@ def compute_metrics_detection_all(iou_matrix, iou_thres, scores, thresholds):
 
     # AP scores
     ap_scores = []
+    best_f1_scores = []
+    prec_at_best_f1_scores = []
+    recall_at_best_f1_scores = []
     for iou_t in iou_thres:
         is_true_match, fns, pred_ids, gt_ids = greedy_matching(iou_matrix.copy(), iou_threshold=iou_t)
         rc = np.cumsum(is_true_match) / max(num_gts, 1)  # Recall
         pr = np.cumsum(is_true_match) / (np.arange(num_preds) + 1)  # Precision
         rc = rc[is_true_match]
         pr = pr[is_true_match]
+        f1 = np.where(pr + rc > 0.01, 2 * pr * rc / (pr + rc), 0.0)
+        best_f1_idx = np.argmax(f1)
+        best_f1 = f1[best_f1_idx]
+        prec_at_best_f1 = pr[best_f1_idx]
+        recall_at_best_f1 = rc[best_f1_idx]
+        assert best_f1 == np.max(f1), (best_f1, best_f1_idx, np.max(f1))
         ap = compute_ap(precision=pr, recall=rc)
         ap_scores.append(ap)
+        best_f1_scores.append(best_f1)
+        prec_at_best_f1_scores.append(prec_at_best_f1)
+        recall_at_best_f1_scores.append(recall_at_best_f1)
 
     # F1 score, ... based on confidence thresholds
 
@@ -764,7 +776,7 @@ def compute_metrics_detection_all(iou_matrix, iou_thres, scores, thresholds):
         prec_scores.append(precision)
         recall_scores.append(recall)
     
-    return ap_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
+    return ap_scores, best_f1_scores, prec_at_best_f1_scores, recall_at_best_f1_scores, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
 
 def contour_to_points(geometry, shape, thickness=1):
     """
@@ -858,6 +870,9 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
 
     # AP scores, segmentation metrics
     ap_scores = []
+    best_f1_scores = []
+    prec_at_best_f1_scores = []
+    recall_at_best_f1_scores = []
     # hausdorff_contour_scores = []
     hausdorff_scores = []
     hausdorff_95_scores = []
@@ -870,10 +885,19 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
         # print('pred_ids, gt_ids, is_true_match', pred_ids, gt_ids, is_true_match)
         rc = np.cumsum(is_true_match) / max(num_gts, 1)  # Recall
         pr = np.cumsum(is_true_match) / (np.arange(num_preds) + 1)  # Precision
+        f1 = np.where(pr + rc > 0.01, 2 * pr * rc / (pr + rc), 0.0)
+        best_f1_idx = np.argmax(f1)
+        best_f1 = f1[best_f1_idx]
+        prec_at_best_f1 = pr[best_f1_idx]
+        recall_at_best_f1 = rc[best_f1_idx]
+        assert best_f1 == np.max(f1), (best_f1, best_f1_idx, np.max(f1))
         rc = rc[is_true_match]
         pr = pr[is_true_match]
         ap = compute_ap(precision=pr, recall=rc)
         ap_scores.append(ap)
+        best_f1_scores.append(best_f1)
+        prec_at_best_f1_scores.append(prec_at_best_f1)
+        recall_at_best_f1_scores.append(recall_at_best_f1)
 
         # hausdorff_contour = []
         hausdorff = []
@@ -963,7 +987,7 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
         prec_scores.append(precision)
         recall_scores.append(recall)
     
-    return ap_scores, hausdorff_scores, hausdorff_95_scores, masd_scores, assd_scores, iou_scores_no_thres, dice_scores_no_thres, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
+    return ap_scores, best_f1_scores, prec_at_best_f1_scores, recall_at_best_f1_scores, hausdorff_scores, hausdorff_95_scores, masd_scores, assd_scores, iou_scores_no_thres, dice_scores_no_thres, pq_scores, iou_scores, dice_scores, f1_scores, prec_scores, recall_scores
 
 
 
