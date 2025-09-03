@@ -6,7 +6,7 @@
 
 ### ---------- GPU ----------
 # #SBATCH --exclude=supergpu17
-#SBATCH --qos gpu_normal
+#SBATCH --qos gpu_priority
 # #SBATCH --qos gpu_long
 #SBATCH --partition gpu_p
 
@@ -15,7 +15,7 @@
 #SBATCH --mem=50G
 #SBATCH --constraint=a100_80gb
 
-#SBATCH --time=01-00:00:00 # Job runtime 02-00:00:00
+#SBATCH --time=00-12:00:00 # Job runtime 02-00:00:00
 # #SBATCH --begin=now+18hours
 #SBATCH --nice=10000  # Manual priority. Do not change this.
 
@@ -40,4 +40,5 @@ source ../venvs/anchor_detr/bin/activate
 # python train_general.py +baseline_models=anchor_detr sub_name='"${hydra:runtime.choices.baseline_models}_finetuning_long"' sampling_groups=["n_objects","dataset"] lr_drop=900 max_epochs=1200 seed=null run=2024 checkpoint_path='"${decoder}_${backbone_name}_NeurIPSCellSeg_train_${hydra:runtime.choices.baseline_models}_pretraining_NeurIPS_superlong_focal_alpha_09_True_${batch_size}_${batches_per_epoch}_2024-last.ckpt"' finetune_only_class_linear=false
 # # python train_general.py +baseline_models=anchor_detr sub_name='"${hydra:runtime.choices.baseline_models}_finetuning_long"' sampling_groups=["n_objects","dataset"] lr_drop=900 max_epochs=1200 seed=null run=2025 checkpoint_path='"${decoder}_${backbone_name}_NeurIPSCellSeg_train_${hydra:runtime.choices.baseline_models}_pretraining_NeurIPS_superlong_focal_alpha_09_True_${batch_size}_${batches_per_epoch}_2024-last.ckpt"' finetune_only_class_linear=false
 # # python train_general.py +baseline_models=anchor_detr sub_name='"${hydra:runtime.choices.baseline_models}_finetuning_long"' sampling_groups=["n_objects","dataset"] lr_drop=900 max_epochs=1200 seed=null run=2026 checkpoint_path='"${decoder}_${backbone_name}_NeurIPSCellSeg_train_${hydra:runtime.choices.baseline_models}_pretraining_NeurIPS_superlong_focal_alpha_09_True_${batch_size}_${batches_per_epoch}_2024-last.ckpt"' finetune_only_class_linear=false
-python test_custom_checkpoint.py +custom_output_name=anchor_detr_1200_best +custom_ckpt_file="1200_epochs_best/anchor_detr_resnet50_strong_aug_finetuning_long_best_epoch=1074_val_loss=3.72.ckpt" +baseline_models=anchor_detr sub_name='"${hydra:runtime.choices.baseline_models}_finetuning_long"' sampling_groups=["n_objects","dataset"] lr_drop=900 max_epochs=1200 seed=null run=2024 checkpoint_path='"${decoder}_${backbone_name}_NeurIPSCellSeg_train_${hydra:runtime.choices.baseline_models}_pretraining_NeurIPS_superlong_focal_alpha_09_True_${batch_size}_${batches_per_epoch}_2024-last.ckpt"' finetune_only_class_linear=false
+
+python test_custom_checkpoint.py +custom_output_name=anchor_detr_1200_best +custom_ckpt_file='"1200_epochs_best/anchor_detr_resnet50_strong_aug_finetuning_long_best_epoch=1074_val_loss=3.72.ckpt"' +baseline_models=anchor_detr sub_name='"${hydra:runtime.choices.baseline_models}_finetuning_long"' sampling_groups=["n_objects","dataset"] lr_drop=900 max_epochs=1200 seed=null run=2024 checkpoint_path='"${decoder}_${backbone_name}_NeurIPSCellSeg_train_${hydra:runtime.choices.baseline_models}_pretraining_NeurIPS_superlong_focal_alpha_09_True_${batch_size}_${batches_per_epoch}_2024-last.ckpt"' finetune_only_class_linear=false

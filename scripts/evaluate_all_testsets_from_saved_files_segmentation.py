@@ -122,8 +122,8 @@ if __name__=='__main__':
     mAP_metric.warn_on_many_detections = False
 
     for model_name, sam_version, logging_name in [
-        # ('segmentation_anchor_detr_2024', 'sam1', 'AnchorDETR_resnet50_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_anchor_detr_strong_aug_finetuning_long_True_12_100_2024'),
-        # ('segmentation_anchor_detr_sam_base_2024', 'sam1', 'AnchorDETR_SAM_base_images_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_anchor_detr_sam_base_strong_aug_finetuning_long_True_12_100_2024'),
+        ('segmentation_anchor_detr_2024', 'sam1', 'AnchorDETR_resnet50_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_anchor_detr_strong_aug_finetuning_long_True_12_100_2024'),
+        ('segmentation_anchor_detr_sam_base_2024', 'sam1', 'AnchorDETR_SAM_base_images_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_anchor_detr_sam_base_strong_aug_finetuning_long_True_12_100_2024'),
         ('segmentation_frcnnv2_strong_aug_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_frcnn_v2_strong_aug_finetuning_long_True_12_100_2024'),
     ]:
         model_name = f"impr_thres_{model_name}_{sam_version}"
@@ -131,18 +131,18 @@ if __name__=='__main__':
                               sam_version=sam_version,
                               max_detections=500)
         for ds_idx, ds in enumerate([
-            # dl.OrganoID(split='test'),
-            # dl.OrganoID(split='test_C'),
-            # dl.OrganoID(split='test_Lung'),
-            # dl.OrganoID(split='test_ACC'),
-            # dl.OrganoID(split='test_only_mouse'),
-            # dl.OrgaExtractor(split='all'),
+            dl.OrganoID(split='test'),
+            dl.OrganoID(split='test_C'),
+            dl.OrganoID(split='test_Lung'),
+            dl.OrganoID(split='test_ACC'),
+            dl.OrganoID(split='test_only_mouse'),
+            dl.OrgaExtractor(split='all'),
             dl.NewData(split='all'),
-            # dl.OrgaSegment(split='test'),
-            # dl.OrgaQuant(split='test'),
-            # dl.Tellu(split='test'),
-            # dl.MultiOrg(split='test_macros'),
-            # dl.MultiOrg(split='test_normal'),
+            dl.OrgaSegment(split='test'),
+            dl.OrgaQuant(split='test'),
+            dl.Tellu(split='test'),
+            dl.MultiOrg(split='test_macros'),
+            dl.MultiOrg(split='test_normal'),
         ]):
             print(f'\n\n\n reached dataset {str(ds)} {ds.split} ====== \n\n\n')
             if (results_dir / f'{model_name}' / f'mean_detection_metrics_{str(ds)}_{ds.split}.csv').exists():
