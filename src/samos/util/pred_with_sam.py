@@ -233,7 +233,6 @@ class PredictionSAM():
                 mask = masks[0]
                 
                 transform = rasterio.Affine(1, 0, off_x, 0, 1, off_y)
-                outlines = []
                 outline = None
                 for p, v in rio_shapes(mask,
                                        mask=mask,
@@ -249,6 +248,8 @@ class PredictionSAM():
                                 outline = outline_new
                     else:
                         raise RuntimeError(f'value: {v}, polygon: {p}')
+                if outline is None:
+                    outline = shapely.Polygon()
                 contours.append(outline)
         return contours
 

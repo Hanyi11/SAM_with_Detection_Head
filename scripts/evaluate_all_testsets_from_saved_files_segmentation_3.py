@@ -123,8 +123,8 @@ if __name__=='__main__':
 
     for model_name, sam_version, logging_name in [
         # ('segmentation_anchor_detr_2024', 'sam1', 'AnchorDETR_resnet50_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_anchor_detr_strong_aug_finetuning_long_True_12_100_2024'),
-        # ('segmentation_anchor_detr_sam_base_2024', 'sam1', 'AnchorDETR_SAM_base_images_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_anchor_detr_sam_base_strong_aug_finetuning_long_True_12_100_2024'),
-        ('segmentation_frcnnv2_strong_aug_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_frcnn_v2_strong_aug_finetuning_long_True_12_100_2024'),
+        ('segmentation_anchor_detr_sam_base_2024', 'sam1', 'AnchorDETR_SAM_base_images_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_anchor_detr_sam_base_strong_aug_finetuning_long_True_12_100_2024'),
+        # ('segmentation_frcnnv2_strong_aug_2024', 'sam1', 'FRCNNv2_default_MultiOrg_train_normal_MultiOrg_train_macros_OrgaSegment_train_Tellu_train_OrgaQuant_train_frcnn_v2_strong_aug_finetuning_long_True_12_100_2024'),
     ]:
         model_name = f"impr_thres_{model_name}_{sam_version}"
         model = PredictionSAM(logging_name=logging_name, 

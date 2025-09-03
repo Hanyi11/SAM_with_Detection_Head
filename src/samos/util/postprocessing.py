@@ -711,14 +711,21 @@ def compute_metrics_detection_all(iou_matrix, iou_thres, scores, thresholds):
         is_true_match, fns, pred_ids, gt_ids = greedy_matching(iou_matrix.copy(), iou_threshold=iou_t)
         rc = np.cumsum(is_true_match) / max(num_gts, 1)  # Recall
         pr = np.cumsum(is_true_match) / (np.arange(num_preds) + 1)  # Precision
+        f1 = np.where(pr + rc > 0.01, 2 * pr * rc / (pr + rc), 0.0)
+        # print(pr, rc, f1)
+        if len(f1) > 0:
+            best_f1_idx = np.argmax(f1)
+            best_f1 = f1[best_f1_idx]
+            prec_at_best_f1 = pr[best_f1_idx]
+            recall_at_best_f1 = rc[best_f1_idx]
+            assert best_f1 == np.max(f1), (best_f1, best_f1_idx, np.max(f1))
+        else:
+            best_f1 = 0.0
+            prec_at_best_f1 = 0.0
+            recall_at_best_f1 = 0.0
         rc = rc[is_true_match]
         pr = pr[is_true_match]
-        f1 = np.where(pr + rc > 0.01, 2 * pr * rc / (pr + rc), 0.0)
-        best_f1_idx = np.argmax(f1)
-        best_f1 = f1[best_f1_idx]
-        prec_at_best_f1 = pr[best_f1_idx]
-        recall_at_best_f1 = rc[best_f1_idx]
-        assert best_f1 == np.max(f1), (best_f1, best_f1_idx, np.max(f1))
+
         ap = compute_ap(precision=pr, recall=rc)
         ap_scores.append(ap)
         best_f1_scores.append(best_f1)
@@ -886,11 +893,16 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
         rc = np.cumsum(is_true_match) / max(num_gts, 1)  # Recall
         pr = np.cumsum(is_true_match) / (np.arange(num_preds) + 1)  # Precision
         f1 = np.where(pr + rc > 0.01, 2 * pr * rc / (pr + rc), 0.0)
-        best_f1_idx = np.argmax(f1)
-        best_f1 = f1[best_f1_idx]
-        prec_at_best_f1 = pr[best_f1_idx]
-        recall_at_best_f1 = rc[best_f1_idx]
-        assert best_f1 == np.max(f1), (best_f1, best_f1_idx, np.max(f1))
+        if len(f1)>0:
+            best_f1_idx = np.argmax(f1)
+            best_f1 = f1[best_f1_idx]
+            prec_at_best_f1 = pr[best_f1_idx]
+            recall_at_best_f1 = rc[best_f1_idx]
+            assert best_f1 == np.max(f1), (best_f1, best_f1_idx, np.max(f1))
+        else:
+            best_f1 = 0.0
+            prec_at_best_f1 = 0.0
+            recall_at_best_f1 = 0.0
         rc = rc[is_true_match]
         pr = pr[is_true_match]
         ap = compute_ap(precision=pr, recall=rc)
@@ -1031,7 +1043,14 @@ def compute_iou_matrix_segmentation_contours(pred_contours, gt_masks):
         # print('gt_mask.shape, gt_mask.dtype', gt_mask.shape, gt_mask.dtype)
         gt_contour = mask_to_contour(gt_mask)
         for i, pred_contour in enumerate(pred_contours):
-            intersection = shapely.intersection(gt_contour, pred_contour).area
+            intersection = gt_contour.intersection(pred_contour)
+            if intersection is not None:
+                intersection = intersection.area
+            else:
+                print('intersection is None')
+                print('gt_contour', gt_contour)
+                print('pred_contour', pred_contour)
+                intersection = 0.0
             union = shapely.union(gt_contour, pred_contour).area
             if union > 0:
                 iou_matrix[i, j] = intersection / union
