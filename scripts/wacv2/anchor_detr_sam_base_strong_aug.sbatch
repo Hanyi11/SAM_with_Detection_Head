@@ -6,8 +6,8 @@
 
 ### ---------- GPU ----------
 # #SBATCH --exclude=supergpu17
-# #SBATCH --qos gpu_normal
-#SBATCH --qos gpu_long
+#SBATCH --qos gpu_normal
+# #SBATCH --qos gpu_long
 #SBATCH --partition gpu_p
 
 #SBATCH --gres=gpu:1
@@ -15,8 +15,8 @@
 #SBATCH --mem=50G
 #SBATCH --constraint=a100_80gb
 
-#SBATCH --time=03-00:00:00 # Job runtime 02-00:00:00
-#SBATCH --begin=now+18hours
+#SBATCH --time=00-12:00:00 # Job runtime 02-00:00:00
+# #SBATCH --begin=now+18hours
 #SBATCH --nice=10000  # Manual priority. Do not change this.
 
 # Notification
