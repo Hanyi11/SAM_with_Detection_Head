@@ -184,6 +184,7 @@ if __name__=='__main__':
                     iou_matrix, iou_thres, scores, thresholds
                 )
                 detection_mAP.append(pd.DataFrame({
+                    'image_ID': [im_ID] * len(iou_thres),
                     'iou_thres': map(lambda x: f'{x:.3f}', iou_thres), 
                     'AP': mAP_scores, 
                     'best_F1': best_f1_scores,
@@ -224,6 +225,7 @@ if __name__=='__main__':
                     )
 
                     segmentation_mAP.append(pd.DataFrame({
+                        'image_ID': [im_ID] * len(iou_thres),
                         'iou_thres': map(lambda x: f'{x:.3f}', iou_thres), 
                         'AP': mAP_scores, 
                         'best_F1': best_f1_scores,

@@ -9,10 +9,10 @@ import json
 from cellpose import models as cp_models
 from . import dataloading as dl
 from . import postprocessing as pp
-from . import box_ops_numpy as bxn
+# from . import box_ops_numpy as bxn
 
 
-import detection_head_model as dhm
+# import detection_head_model as dhm
 
 # Import SAM1
 sam1_path = '/home/icb/lion.gleiter/projects/organoid_sam/segment-anything/segment-anything'

@@ -911,6 +911,10 @@ def compute_metrics_segmentation_all(iou_matrix, iou_thres, scores, thresholds, 
         prec_at_best_f1_scores.append(prec_at_best_f1)
         recall_at_best_f1_scores.append(recall_at_best_f1)
 
+        
+        # # Calculate PQ
+        # pq = np.sum(tp_ious) / (tp + 0.5 * fp + 0.5 * fn)
+
         # hausdorff_contour = []
         hausdorff = []
         hausdorff_95 = []
